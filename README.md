@@ -1,4 +1,9 @@
 <div align="center">
+![Gmail Creator Pro](2 (2).png)
+![Python](https://img.shields.io/badge/Python-3.8%2B-green.svg)
+![License](https://img.shields.io/badge/License-Proprietary-red.svg)
+![Platform](https://img.shields.io/badge/Platform-Windows-lightgrey.svg)
+
 
 ```
   ██████╗ ███╗   ███╗ █████╗ ██╗██╗         ██╗███╗   ██╗███████╗██╗███╗   ██╗██╗████████╗██╗   ██╗
@@ -197,8 +202,8 @@ gmail_infinity_factory_2026/
 
 ### Step 1 — Clone the repository
 ```bash
-git clone https://github.com/ShadowHacker0/gmail-infinity-factory-2026.git
-cd gmail-infinity-factory-2026
+git clone https://github.com/ShadowHacker0/gmail-infinity-factory.git
+cd gmail-infinity-factory
 ```
 
 ### Step 2 — Create a virtual environment (recommended)
