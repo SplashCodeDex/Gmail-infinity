@@ -198,8 +198,8 @@ gmail_infinity_factory_2026/
 
 ### Step 1 — Clone the repository
 ```bash
-git clone https://github.com/ShadowHackrs/gmail-infinity-factory.git
-cd gmail-infinity-factory
+git clone https://github.com/ShadowHackrs/Gmail-infinity.git
+cd Gmail-infinity
 ```
 
 ### Step 2 — Create a virtual environment (recommended)
