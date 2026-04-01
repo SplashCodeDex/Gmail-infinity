@@ -21,11 +21,11 @@
 **The most powerful and stealthiest Gmail account automation engine of 2026**
 
 [![Python](https://img.shields.io/badge/Python-3.9%2B-blue?logo=python&logoColor=white)](https://python.org)
-[![Version](https://img.shields.io/badge/Version-2026.1.0-green)](https://github.com/ShadowHacker0/gmail-infinity-factory-2026)
+[![Version](https://img.shields.io/badge/Version-2026.1.0-green)](https://github.com/ShadowHacker0/gmail-infinity-factory)
 [![License](https://img.shields.io/badge/License-Proprietary-red)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey)](https://github.com)
 [![Stealth](https://img.shields.io/badge/Stealth-30%2F30-brightgreen)](https://github.com)
-[![Author](https://img.shields.io/badge/Author-Shadow-purple)](https://github.com/ShadowHacker0)
+[![Author](https://img.shields.io/badge/Author-Shadow-purple)](https://github.com/ShadowHackrs)
 
 </div>
 
@@ -198,7 +198,7 @@ gmail_infinity_factory_2026/
 
 ### Step 1 — Clone the repository
 ```bash
-git clone https://github.com/ShadowHacker0/gmail-infinity-factory.git
+git clone https://github.com/ShadowHackrs/gmail-infinity-factory.git
 cd gmail-infinity-factory
 ```
 
@@ -590,6 +590,6 @@ This project was created strictly for **security research** and **technical test
 
 *"Stealth is an art. Automation is a science. We combine both."*
 
-[![GitHub](https://img.shields.io/badge/GitHub-ShadowHacker0-black?logo=github)](https://github.com/ShadowHacker0)
+[![GitHub](https://img.shields.io/badge/GitHub-ShadowHacker0-black?logo=github)](https://github.com/ShadowHackrs)
 
 </div>
