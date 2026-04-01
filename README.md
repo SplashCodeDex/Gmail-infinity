@@ -1,9 +1,4 @@
 <div align="center">
-![Gmail Creator Pro](2 (2).png)
-![Python](https://img.shields.io/badge/Python-3.8%2B-green.svg)
-![License](https://img.shields.io/badge/License-Proprietary-red.svg)
-![Platform](https://img.shields.io/badge/Platform-Windows-lightgrey.svg)
-
 
 ```
   ██████╗ ███╗   ███╗ █████╗ ██╗██╗         ██╗███╗   ██╗███████╗██╗███╗   ██╗██╗████████╗██╗   ██╗
@@ -19,6 +14,7 @@
  ██║     ██║  ██║╚██████╗   ██║   ╚██████╔╝██║  ██║   ██║       ███████╗╚██████╔╝███████╗╚██████╔╝
  ╚═╝     ╚═╝  ╚═╝ ╚═════╝   ╚═╝    ╚═════╝ ╚═╝  ╚═╝   ╚═╝       ╚══════╝ ╚═════╝ ╚══════╝ ╚═════╝
 ```
+![Gmail Creator Pro Interface](1.png)
 
 # 🏭 Gmail Infinity Factory 2026
 
@@ -587,7 +583,9 @@ This project was created strictly for **security research** and **technical test
 ---
 
 <div align="center">
+**© 2026 Shadow Hacker - All Rights Reserved**
 
+[Website](https://www.shadowhackr.com) • [Facebook](https://www.facebook.com/ShadowHackr) • [WhatsApp](https://wa.me/962796668987)
 **Built with ❤️ and ☕ by Shadow**
 
 *"Stealth is an art. Automation is a science. We combine both."*
