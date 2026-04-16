@@ -579,6 +579,15 @@ This project was created strictly for **security research** and **technical test
 ║                                                              ║
 ╚══════════════════════════════════════════════════════════════╝
 ```
+## 🎥 Demo Video
+
+[![Watch Demo](https://img.youtube.com/vi/Ovz5KMg086k/maxresdefault.jpg)](https://www.youtube.com/watch?v=Ovz5KMg086k)
+
+---
+
+## 🌐 Official Website
+
+🔗 https://www.shadowhackr.com/2026/04/gmail-2026.html
 
 ---
 
