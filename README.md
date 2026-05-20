@@ -14,7 +14,7 @@
  ██║     ██║  ██║╚██████╗   ██║   ╚██████╔╝██║  ██║   ██║       ███████╗╚██████╔╝███████╗╚██████╔╝
  ╚═╝     ╚═╝  ╚═╝ ╚═════╝   ╚═╝    ╚═════╝ ╚═╝  ╚═╝   ╚═╝       ╚══════╝ ╚═════╝ ╚══════╝ ╚═════╝
 ```
-![Gmail Creator Pro Interface](1.png)
+![Gmail Creator Pro Interface](sc.png)
 
 # 🏭 Gmail Infinity Factory 2026
 
