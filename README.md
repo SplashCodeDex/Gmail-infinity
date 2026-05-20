@@ -298,7 +298,7 @@ Open `config/settings.yaml` and enter your keys in the appropriate sections:
 
 ### Basic Launch (Interactive TUI)
 ```bash
-python main.py
+python auto_gmail_creator.py
 ```
 
 The application will open an interactive TUI in your terminal.
