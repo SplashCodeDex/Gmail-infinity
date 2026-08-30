@@ -101,12 +101,41 @@ class ProxyManager:
         return False
 
     def check_all_health(self):
-        results = {"healthy": 0, "unhealthy": 0}
-        for proxy in self._proxies:
-            if self.check_health(proxy):
-                results["healthy"] += 1
-            else:
-                results["unhealthy"] += 1
+        return self.check_all_health_detailed()
+
+    def check_all_health_detailed(self, max_workers=10, timeout=6):
+        import concurrent.futures
+        results = {"total": len(self._proxies), "healthy": 0, "unhealthy": 0, "proxies": []}
+        if not self._proxies:
+            return results
+
+        def _test_single(proxy):
+            start = time.time()
+            healthy = self.check_health(proxy, timeout=timeout)
+            latency = round((time.time() - start) * 1000, 1) if healthy else None
+            return {
+                "proxy": proxy,
+                "healthy": healthy,
+                "latency_ms": latency,
+                "score": self._scores.get(proxy, 50)
+            }
+
+        worker_count = min(len(self._proxies), max_workers)
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max(worker_count, 1)) as ex:
+            futures = [ex.submit(_test_single, p) for p in self._proxies]
+            for f in concurrent.futures.as_completed(futures):
+                try:
+                    res = f.result()
+                    results["proxies"].append(res)
+                    if res["healthy"]:
+                        results["healthy"] += 1
+                    else:
+                        results["unhealthy"] += 1
+                except Exception:
+                    pass
+
+        # Sort proxies with healthy/lowest latency first
+        results["proxies"].sort(key=lambda x: (not x["healthy"], x["latency_ms"] or 99999))
         return results
 
     def get_ip_info(self, proxy=None):

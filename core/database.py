@@ -7,11 +7,15 @@ import logging
 from datetime import datetime
 import json
 
+from config.settings import PROJECT_ROOT
+
 logger = logging.getLogger('gmail_creator_db')
 
 
 class DatabaseManager:
-    def __init__(self, db_path="data/database.db"):
+    def __init__(self, db_path=None):
+        if db_path is None:
+            db_path = str(PROJECT_ROOT / "data" / "database.db")
         self.db_path = db_path
         self._ensure_dir()
         self._init_db()
@@ -194,7 +198,11 @@ class DatabaseManager:
         except sqlite3.Error:
             return []
 
-    def run_migration(self, old_json_path="data/accounts.json", old_txt_path="data/accounts.txt"):
+    def run_migration(self, old_json_path=None, old_txt_path=None):
+        if old_txt_path is None:
+            old_txt_path = str(PROJECT_ROOT / "data" / "accounts.txt")
+        if old_json_path is None:
+            old_json_path = str(PROJECT_ROOT / "data" / "accounts.json")
         migrated_count = 0
 
         if os.path.exists(old_txt_path):

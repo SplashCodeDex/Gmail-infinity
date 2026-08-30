@@ -1,9 +1,15 @@
 import os
 import logging
+from pathlib import Path
 from dotenv import load_dotenv
 
-# Load environment variables from .env file
-load_dotenv()
+# Project root = parent of this config/ directory. Anchors all relative
+# paths regardless of the working directory the app was started from
+# (root scripts, api/, web/, etc.).
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+
+# Load environment variables from .env file (project root)
+load_dotenv(PROJECT_ROOT / ".env")
 
 logger = logging.getLogger('gmail_creator_config')
 
@@ -64,7 +70,7 @@ class Config:
     #                  PROXY CONFIGURATION
     # ═══════════════════════════════════════════════════════════════
     ENABLE_PROXY = os.getenv("ENABLE_PROXY", "False").lower() == "true"
-    PROXY_FILE = os.getenv("PROXY_FILE", "config/proxies.txt")
+    PROXY_FILE = str(PROJECT_ROOT / os.getenv("PROXY_FILE", "config/proxies.txt"))
     PROXY_TYPE = os.getenv("PROXY_TYPE", "residential")  # residential / mobile / datacenter
     ROTATE_PROXY_EVERY = int(os.getenv("ROTATE_PROXY_EVERY", "1"))
     PROXY_COUNTRY_ROTATION = os.getenv("PROXY_COUNTRY_ROTATION", "US,GB,CA,AU").split(",")
@@ -99,7 +105,7 @@ class Config:
     #                  RECOVERY CHAIN
     # ═══════════════════════════════════════════════════════════════
     ENABLE_RECOVERY_CHAIN = os.getenv("ENABLE_RECOVERY_CHAIN", "True").lower() == "true"
-    CHAIN_FILE = os.getenv("CHAIN_FILE", "data/chain.json")
+    CHAIN_FILE = str(PROJECT_ROOT / os.getenv("CHAIN_FILE", "data/chain.json"))
 
     # ═══════════════════════════════════════════════════════════════
     #                  ADVANCED STEALTH MODULES
@@ -120,16 +126,16 @@ class Config:
     #                  NAMES & PATHS
     # ═══════════════════════════════════════════════════════════════
     USE_ARABIC_NAMES = os.getenv("USE_ARABIC_NAMES", "True").lower() == "true"
-    NAMES_FILE = os.getenv("NAMES_FILE", "data/names.txt")
-    USER_AGENTS_FILE = os.getenv("USER_AGENTS_FILE", "config/user_agents.txt")
+    NAMES_FILE = str(PROJECT_ROOT / os.getenv("NAMES_FILE", "data/names.txt"))
+    USER_AGENTS_FILE = str(PROJECT_ROOT / os.getenv("USER_AGENTS_FILE", "config/user_agents.txt"))
 
     # ═══════════════════════════════════════════════════════════════
     #                  LOGGING & EXPORT
     # ═══════════════════════════════════════════════════════════════
     ENABLE_LOGGING = os.getenv("ENABLE_LOGGING", "True").lower() == "true"
-    LOG_FILE = os.getenv("LOG_FILE", "data/gmail_creator.log")
+    LOG_FILE = str(PROJECT_ROOT / os.getenv("LOG_FILE", "data/gmail_creator.log"))
     LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
-    ACCOUNTS_FILE = os.getenv("ACCOUNTS_FILE", "data/accounts.txt")
+    ACCOUNTS_FILE = str(PROJECT_ROOT / os.getenv("ACCOUNTS_FILE", "data/accounts.txt"))
     EXPORT_FORMAT = os.getenv("EXPORT_FORMAT", "txt")
 
     # ═══════════════════════════════════════════════════════════════

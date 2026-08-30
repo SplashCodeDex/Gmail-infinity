@@ -61,7 +61,9 @@ class AccountManager:
 
     def export_csv(self, filepath=None):
         if not filepath:
-            filepath = f"data/accounts_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+            filepath = os.path.join(
+                "data", f"accounts_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv")
+        filepath = str(PROJECT_ROOT / filepath) if not os.path.isabs(filepath) else filepath
         accounts = self.db.get_all_accounts()
         os.makedirs(os.path.dirname(filepath), exist_ok=True)
         with open(filepath, "w", newline="", encoding="utf-8") as f:
@@ -81,7 +83,9 @@ class AccountManager:
 
     def export_json(self, filepath=None):
         if not filepath:
-            filepath = f"data/accounts_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+            filepath = os.path.join(
+                "data", f"accounts_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json")
+        filepath = str(PROJECT_ROOT / filepath) if not os.path.isabs(filepath) else filepath
         accounts = self.db.get_all_accounts()
         os.makedirs(os.path.dirname(filepath), exist_ok=True)
         with open(filepath, "w", encoding="utf-8") as f:

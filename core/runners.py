@@ -7,12 +7,14 @@ import random
 import logging
 import sys
 import os
+import time
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from config.settings import Config
 from core.phone_bypass import handle_verification
 from core.retry_engine import retry_engine, CreationError
+from core.warmup import WarmupEngine
 
 try:
     from core.stealth_browser import PlaywrightStealthManager
@@ -25,6 +27,40 @@ except ImportError:
     AppiumManager = None
 
 logger = logging.getLogger('gmail_creator_runners')
+
+# Screenshot capture settings
+SCREENSHOT_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "screenshots")
+
+
+async def capture_failure(page, tag, username=None):
+    """Capture screenshot + URL + HTML snapshot when a step fails, for diagnosis."""
+    try:
+        os.makedirs(SCREENSHOT_DIR, exist_ok=True)
+        ts = time.strftime("%Y%m%d_%H%M%S")
+        ident = f"_{username}" if username else ""
+        base = os.path.join(SCREENSHOT_DIR, f"{ts}{ident}_{tag}")
+
+        try:
+            await page.screenshot(path=f"{base}.png", full_page=True)
+            logger.debug(f"[SCREENSHOT] Saved: {base}.png")
+        except Exception as shot_err:
+            logger.debug(f"[SCREENSHOT] Screenshot failed: {shot_err}")
+
+        try:
+            with open(f"{base}_url.txt", "w", encoding="utf-8") as f:
+                f.write(page.url)
+        except Exception:
+            pass
+
+        try:
+            with open(f"{base}_page.html", "w", encoding="utf-8") as f:
+                f.write(await page.content())
+        except Exception:
+            pass
+
+        logger.error(f"[FAILURE-CAPTURE] tag={tag} url={page.url} files={base}.png")
+    except Exception as cap_err:
+        logger.debug(f"[FAILURE-CAPTURE] Failed to capture ({tag}): {cap_err}")
 
 
 def _update_progress(progress, task, **kwargs):
@@ -228,22 +264,11 @@ async def _google_prewarm(page):
             except Exception:
                 pass
 
-        # 3. YouTube — strong Google ecosystem signal
-        if await _safe_goto("https://www.youtube.com"):
-            await _accept_cookies()
-            await _random_mouse_movement()
-            await _human_scroll(200, 600)
-            await page.wait_for_timeout(random.randint(3000, 5000))
-
-            # Click a video thumbnail
-            try:
-                thumbnails = await page.query_selector_all("a#thumbnail")
-                if thumbnails and len(thumbnails) > 2:
-                    target = random.choice(thumbnails[:6])
-                    await target.click(timeout=3000)
-                    await page.wait_for_timeout(random.randint(5000, 10000))
-            except Exception:
-                pass
+        # 3. YouTube — strong Google ecosystem signal (Dynamic search & stream telemetry)
+        try:
+            await WarmupEngine.simulate_youtube_watch(page, min_watch_sec=15, max_watch_sec=25)
+        except Exception as yt_err:
+            logger.debug(f"[PREWARM] YouTube warm notice: {yt_err}")
 
         # 4. Google Maps — adds location trust
         if await _safe_goto("https://www.google.com/maps"):
@@ -297,6 +322,188 @@ async def _google_prewarm(page):
 
 
 # ──────────────────────────────────────────────────────────────────────────────
+
+async def _handle_post_registration_steps(page, username, progress, account_task, is_mobile=False):
+    """
+    Handles modern Google post-registration multi-step UI:
+    1. Add Recovery Email (fills Config.RECOVERY_EMAIL or clicks Skip)
+    2. Add Phone Number (optional screen -> clicks Skip)
+    3. Review Account Info (clicks Next)
+    4. Personalization Settings (chooses Express 1-step, clicks Next / Confirm)
+    5. Privacy and Terms (solves Captcha if present, scrolls down, clicks I agree)
+    """
+    logger.info("[POST-REG] Processing post-registration steps...")
+    _update_progress(progress, account_task, completed=88, description="Configuring account settings...")
+
+    for step_round in range(8):
+        await page.wait_for_timeout(2000)
+        try:
+            current_url = page.url.lower()
+            content = (await page.content()).lower()
+
+            # Check if account is already complete / landed on dashboard
+            success_urls = ["myaccount.google.com", "mail.google.com", "youtube.com", "workspace.google.com"]
+            if any(u in current_url for u in success_urls):
+                logger.info(f"[POST-REG] Reached destination URL: {current_url}")
+                return True
+
+            # 1. Recovery Email Screen
+            recovery_signals = [
+                "recovery email", "add recovery email", "recoveryemail",
+                "بريد إلكتروني مخصص لاسترداد الحساب", "إضافة بريد إلكتروني",
+            ]
+            if any(s in content for s in recovery_signals) or "recoveryemail" in current_url:
+                recovery_email = getattr(Config, 'RECOVERY_EMAIL', '')
+                if recovery_email:
+                    logger.info(f"[POST-REG] Entering recovery email: {recovery_email}")
+                    _update_progress(progress, account_task, description="Setting recovery email...")
+                    for sel in ['input[type="email"]', 'input[name="recoveryEmail"]', 'input[aria-label*="recovery" i]']:
+                        try:
+                            inp = await page.query_selector(sel)
+                            if inp and await inp.is_visible():
+                                await inp.fill(recovery_email)
+                                await page.wait_for_timeout(500)
+                                await _try_click(page, ["button:has-text('Next')", "button:has-text('التالي')", "button[type='submit']"])
+                                break
+                        except Exception:
+                            continue
+                else:
+                    logger.info("[POST-REG] No recovery email configured -> clicking Skip")
+                    _update_progress(progress, account_task, description="Skipping recovery email...")
+                    await _try_click(page, [
+                        "button:has-text('Skip')", "button:has-text('تخطي')",
+                        "span:has-text('Skip')", "span:has-text('تخطي')",
+                    ])
+                await page.wait_for_timeout(2500)
+                continue
+
+            # 2. Add Phone Number (Optional) Screen
+            phone_signals = [
+                "add phone number", "add a phone number", "إضافة رقم هاتف",
+                "add phone", "phone number",
+            ]
+            if ("recoveryphone" in current_url or any(s in content for s in phone_signals)) and not ("verify your identity" in content or "confirm you're not a robot" in content):
+                logger.info("[POST-REG] Optional phone screen detected -> clicking Skip")
+                _update_progress(progress, account_task, description="Skipping optional phone...")
+                skip_clicked = await _try_click(page, [
+                    "button:has-text('Skip')", "button:has-text('تخطي')",
+                    "span:has-text('Skip')", "span:has-text('تخطي')",
+                    "button:has-text('Not now')", "button:has-text('ليس الآن')",
+                ])
+                if skip_clicked:
+                    await page.wait_for_timeout(2500)
+                    continue
+
+            # 3. Review Account Info Screen
+            review_signals = [
+                "review your account info", "مراجعة معلومات حسابك",
+                "review account", "reviewaccountinfo",
+            ]
+            if any(s in content for s in review_signals) or "reviewaccount" in current_url:
+                logger.info("[POST-REG] Review account info screen detected -> clicking Next")
+                _update_progress(progress, account_task, description="Confirming account details...")
+                await _try_click(page, [
+                    "button:has-text('Next')", "button:has-text('التالي')",
+                    "button[type='submit']",
+                ])
+                await page.wait_for_timeout(2500)
+                continue
+
+            # 4. Personalization Settings (Choose Express 1-step)
+            personalization_signals = [
+                "choose personalization settings", "اختيار إعدادات التخصيص",
+                "express personalization", "التخصيص السريع",
+            ]
+            if any(s in content for s in personalization_signals):
+                logger.info("[POST-REG] Personalization settings detected -> selecting Express (1 step)")
+                _update_progress(progress, account_task, description="Selecting express personalization...")
+                try:
+                    for radio_sel in [
+                        "input[value='1']", "input[type='radio']",
+                        "div:has-text('Express personalization')",
+                        "span:has-text('Express personalization')",
+                    ]:
+                        r = await page.query_selector(radio_sel)
+                        if r and await r.is_visible():
+                            await r.click()
+                            await page.wait_for_timeout(500)
+                            break
+                except Exception:
+                    pass
+
+                await _try_click(page, [
+                    "button:has-text('Next')", "button:has-text('التالي')",
+                    "button:has-text('Confirm')", "button:has-text('تأكيد')",
+                    "button[type='submit']",
+                ])
+                await page.wait_for_timeout(2500)
+                continue
+
+            # 5. Terms & Privacy Agreement
+            terms_signals = [
+                "privacy and terms", "الخصوصية والبنود",
+                "i agree", "أوافق", "agree",
+                "terms of service", "بنود الخدمة",
+            ]
+            if any(s in content for s in terms_signals):
+                logger.info("[POST-REG] Privacy and terms screen detected -> accepting")
+                _update_progress(progress, account_task, completed=92, description="Accepting terms of service...")
+
+                # Solve Captcha if present
+                try:
+                    captcha_frame = await page.query_selector('iframe[src*="recaptcha"], iframe[title*="reCAPTCHA"]')
+                    if captcha_frame:
+                        from core.captcha_solver import CaptchaSolver
+                        site_key = await page.evaluate("""() => {
+                            const el = document.querySelector('.g-recaptcha');
+                            return el ? el.getAttribute('data-sitekey') : null;
+                        }""")
+                        if site_key:
+                            token = await asyncio.to_thread(CaptchaSolver.solve, site_key, page.url)
+                            if token:
+                                await page.evaluate(f"""(token) => {{
+                                    const el = document.getElementById('g-recaptcha-response');
+                                    if (el) {{ el.value = token; el.style.display = 'none'; }}
+                                }}""", token)
+                                await page.wait_for_timeout(1000)
+                except Exception:
+                    pass
+
+                # Scroll to bottom of terms
+                try:
+                    await page.mouse.wheel(0, 1500)
+                    await page.wait_for_timeout(800)
+                except Exception:
+                    pass
+
+                await _try_click(page, [
+                    "button:has-text('I agree')", "button:has-text('أوافق')",
+                    "button:has-text('Agree')", "button:has-text('Accept all')",
+                    "button:has-text('Confirm')", "button:has-text('تأكيد')",
+                    "button[type='submit']",
+                ])
+                await page.wait_for_timeout(3500)
+                continue
+
+            # Generic Next / Confirm / Skip clicker for unexpected sub-screens
+            generic_selectors = [
+                "button:has-text('I agree')", "button:has-text('أوافق')",
+                "button:has-text('Confirm')", "button:has-text('تأكيد')",
+                "button:has-text('Accept all')", "button:has-text('Next')",
+                "button:has-text('Continue')", "button:has-text('Skip')",
+                "button:has-text('تخطي')",
+            ]
+            clicked = await _try_click(page, generic_selectors, timeout=1500)
+            if not clicked:
+                break
+
+        except Exception as e:
+            logger.debug(f"[POST-REG] Step error: {e}")
+            break
+
+    return True
+
+
 # Main Playwright Flow
 # ──────────────────────────────────────────────────────────────────────────────
 async def async_playwright_flow(i, num_accounts, username, first_name, last_name,
@@ -394,8 +601,6 @@ async def async_playwright_flow(i, num_accounts, username, first_name, last_name
             except Exception:
                 logger.debug(f"Signup URL #{url_idx+1} failed, trying next...")
                 await page.wait_for_timeout(random.randint(2000, 4000))
-                continue
-
         if not navigated:
             # Last resort: navigate to google.com, then manually navigate to signup
             try:
@@ -437,8 +642,63 @@ async def async_playwright_flow(i, num_accounts, username, first_name, last_name
             except Exception:
                 pass
 
+        if not navigated and flow_mode == "youtube":
+            try:
+                logger.info("[FLOW] Attempting organic YouTube header Sign In -> Create Account route...")
+                _update_progress(progress, account_task, description="[yellow]Trying organic YouTube route...[/]")
+                await page.goto("https://www.youtube.com", timeout=25000, wait_until="domcontentloaded")
+                await page.wait_for_timeout(2000)
+                await WarmupEngine.dismiss_consent(page)
+
+                for signin_sel in [
+                    "a[aria-label='Sign in']", "a:has-text('Sign in')",
+                    "ytd-button-renderer a[href*='accounts.google.com']",
+                    "a[href*='accounts.google.com/ServiceLogin']",
+                ]:
+                    try:
+                        btn = await page.query_selector(signin_sel)
+                        if btn and await btn.is_visible():
+                            await btn.click()
+                            await page.wait_for_timeout(3000)
+                            break
+                    except Exception:
+                        continue
+
+                for create_sel in [
+                    "button:has-text('Create account')", "a:has-text('Create account')",
+                    "span:has-text('Create account')", "a:has-text('إنشاء حساب')",
+                ]:
+                    try:
+                        el = await page.query_selector(create_sel)
+                        if el and await el.is_visible():
+                            await el.click()
+                            await page.wait_for_timeout(2000)
+                            break
+                    except Exception:
+                        continue
+
+                for personal_sel in [
+                    "li:has-text('For my personal use')", "span:has-text('For my personal use')",
+                    "div:has-text('For my personal use')", "li:has-text('لاستخدامي الشخصي')",
+                ]:
+                    try:
+                        el = await page.query_selector(personal_sel)
+                        if el and await el.is_visible():
+                            await el.click()
+                            await page.wait_for_timeout(3000)
+                            break
+                    except Exception:
+                        continue
+
+                el = await page.wait_for_selector('input[name="firstName"]', timeout=10000)
+                if el:
+                    navigated = True
+            except Exception as yt_nav_err:
+                logger.debug(f"[FLOW] YouTube fallback notice: {yt_nav_err}")
+
         if not navigated:
             logger.error("Could not find Google signup form after trying all URLs.")
+            await capture_failure(page, "signup_form_not_found", username)
             return False, CreationError.TIMEOUT
 
         await page.wait_for_timeout(1000)
@@ -511,9 +771,12 @@ async def async_playwright_flow(i, num_accounts, username, first_name, last_name
         await page.wait_for_timeout(2500)
 
         USERNAME_SELECTORS = [
-            'input[name="Username"]', 'input[name="username"]',
+            'input[name="Username"]', 'input[name="username"]', 'input[name="identifier"]',
+            'input[name="GmailAddress"]', 'input[type="email"]',
             'input[type="text"][autocomplete="username"]',
             'input[aria-label*="username" i]', 'input[aria-label*="Gmail address" i]',
+            'input[aria-label*="Create a Gmail address" i]', 'input[aria-label*="عنوان Gmail" i]',
+            'input[placeholder*="username" i]', 'input[placeholder*="Gmail" i]',
         ]
 
         async def find_username_field():
@@ -628,6 +891,7 @@ async def async_playwright_flow(i, num_accounts, username, first_name, last_name
                         await page.wait_for_timeout(1200)
                         continue
                     else:
+                        await capture_failure(page, "username_taken_exhausted", username)
                         return False, CreationError.USERNAME_TAKEN
                 else:
                     username = current_username
@@ -767,88 +1031,11 @@ async def async_playwright_flow(i, num_accounts, username, first_name, last_name
             else:
                 _update_progress(progress, account_task,
                                 description=f"[bold red]Failed: {method}[/]")
+            await capture_failure(page, f"verification_{method}", username)
             return False, error_type
 
-        # ── Step 7: Accept terms ──────────────────────────────────────────
-        _update_progress(progress, account_task, completed=92, description="Accepting terms...")
-
-        # First check if we're actually on a terms/privacy page
-        try:
-            current_url = page.url.lower()
-            page_html = await page.content()
-            page_lower = page_html.lower()
-
-            on_terms_page = (
-                "privacy" in page_lower or "terms" in page_lower or
-                "i agree" in page_lower or "أوافق" in page_lower or
-                "express personalization" in page_lower or
-                "التخصيص السريع" in page_lower or
-                "consentsummary" in current_url or
-                "speedbump" in current_url
-            )
-
-            if not on_terms_page:
-                # Check if already on success page
-                success_signals = [
-                    "myaccount.google.com", "mail.google.com",
-                    "welcome to google", "مرحبًا بك في google",
-                ]
-                if any(s in page_lower or s in current_url for s in success_signals):
-                    logger.info("Already past terms page — account appears created")
-                    on_terms_page = False
-        except Exception:
-            on_terms_page = True
-
-        # Check for captcha before accepting terms
-        try:
-            captcha_frame = await page.query_selector('iframe[src*="recaptcha"], iframe[title*="reCAPTCHA"]')
-            if captcha_frame:
-                from core.captcha_solver import CaptchaSolver
-                site_key = await page.evaluate("""() => {
-                    const el = document.querySelector('.g-recaptcha');
-                    return el ? el.getAttribute('data-sitekey') : null;
-                }""")
-                if site_key:
-                    _update_progress(progress, account_task, description="Solving captcha...")
-                    token = await asyncio.to_thread(CaptchaSolver.solve, site_key, page.url)
-                    if token:
-                        await page.evaluate(f"""(token) => {{
-                            const el = document.getElementById('g-recaptcha-response');
-                            if (el) {{ el.value = token; el.style.display = 'none'; }}
-                            if (typeof ___grecaptcha_cfg !== 'undefined') {{
-                                Object.entries(___grecaptcha_cfg.clients).forEach(([k,v]) => {{
-                                    if (v && v.R && v.R.callback) v.R.callback(token);
-                                }});
-                            }}
-                        }}""", token)
-                        logger.info("Captcha solved and injected successfully")
-                        await page.wait_for_timeout(1000)
-        except Exception as cap_err:
-            logger.debug(f"Captcha check (non-fatal): {cap_err}")
-
-        # Click agree/accept/continue buttons (with short timeouts to avoid hanging)
-        terms_selectors = [
-            "button:has-text('I agree')", "button:has-text('أوافق')",
-            "button:has-text('Agree')", "button:has-text('Accept')",
-            "button:has-text('Continue')", "button:has-text('متابعة')",
-        ]
-        await _try_click(page, terms_selectors, timeout=2000)
-        await page.wait_for_timeout(2000)
-
-        # Click through additional screens (express personalization, etc) — max 3 rounds
-        extra_selectors = [
-            "button:has-text('I agree')", "button:has-text('أوافق')",
-            "button:has-text('Accept all')", "button:has-text('قبول الكل')",
-            "button:has-text('Confirm')", "button:has-text('تأكيد')",
-            "button:has-text('Next')", "button:has-text('التالي')",
-            "button:has-text('Continue')", "button:has-text('متابعة')",
-            "button:has-text('Skip')", "button:has-text('تخطي')",
-        ]
-        for _ in range(3):
-            clicked = await _try_click(page, extra_selectors, timeout=1500)
-            if not clicked:
-                break
-            await page.wait_for_timeout(1500)
+        # ── Step 7: Post-registration multi-step handling (Recovery, Phone Skip, Review, Terms) ──
+        await _handle_post_registration_steps(page, username, progress, account_task, is_mobile=is_mobile)
 
         # ── Step 8: Verify account was actually created ───────────────────
         _update_progress(progress, account_task, completed=95, description="Verifying account creation...")
@@ -897,6 +1084,7 @@ async def async_playwright_flow(i, num_accounts, username, first_name, last_name
 
         if not account_verified:
             logger.warning("Could not verify account creation — account may not have been created")
+            await capture_failure(page, "account_unverified", username)
             _update_progress(progress, account_task, completed=100,
                             description="[bold yellow]Unverified — account may not exist[/]")
             return False, CreationError.UNKNOWN
