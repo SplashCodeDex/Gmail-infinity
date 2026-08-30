@@ -27,7 +27,7 @@ console.log(`${colors.yellow}→ Starting Vite Frontend on http://localhost:3000
 
 const isWindows = process.platform === 'win32'
 const pythonCmd = isWindows ? 'python' : 'python3'
-const npmCmd = isWindows ? 'npm.cmd' : 'npm'
+const viteBin = path.join(webDir, 'node_modules', 'vite', 'bin', 'vite.js')
 
 // 1. Launch FastAPI Backend
 const apiProcess = spawn(pythonCmd, ['api/main.py'], {
@@ -54,8 +54,8 @@ apiProcess.stderr.on('data', (data) => {
   }
 })
 
-// 2. Launch Vite Frontend
-const webProcess = spawn(npmCmd, ['run', 'dev'], {
+// 2. Launch Vite Frontend directly via Node (cross-platform, zero spawn EINVAL issues)
+const webProcess = spawn(process.execPath, [viteBin], {
   cwd: webDir,
   shell: false,
 })
