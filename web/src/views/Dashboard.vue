@@ -4,19 +4,12 @@
     <header class="bg-zinc-900/90 border-b border-zinc-800/80 sticky top-0 z-40 backdrop-blur-md">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="flex items-center justify-between h-14">
-          <!-- Left: Brand & Live Ping -->
+          <!-- Left: Brand -->
           <div class="flex items-center space-x-3">
-            <div class="w-8 h-8 rounded-lg bg-indigo-600 border border-indigo-500 flex items-center justify-center text-white shadow-xs shrink-0">
+            <div class="w-8 h-8 rounded-lg bg-indigo-600 border border-indigo-500 flex items-center justify-center text-white shrink-0">
               <AppIcon name="mail" :size="17" strokeWidth="2.2" />
             </div>
-            <div class="flex items-center space-x-2">
-              <span class="text-sm font-bold text-zinc-100 tracking-tight">{{ APP_CONFIG.name }}</span>
-              <span
-                class="w-2 h-2 rounded-full shrink-0"
-                :class="ws.connected ? 'bg-emerald-500 ping-indicator' : 'bg-rose-500'"
-                :title="ws.connected ? 'Pipeline Connected' : 'Pipeline Reconnecting'"
-              ></span>
-            </div>
+            <span class="text-sm font-bold text-zinc-100 tracking-tight">{{ APP_CONFIG.name }}</span>
           </div>
 
           <!-- Center: Segment View Switcher -->
@@ -32,12 +25,6 @@
             >
               <AppIcon :name="tab.icon" :size="13" />
               <span>{{ tab.label }}</span>
-              <span
-                v-if="tab.id === 'accounts' && app.accounts.length > 0"
-                class="px-1.5 py-0.2 rounded-full text-[10px] font-mono bg-zinc-700 text-zinc-300"
-              >
-                {{ app.accounts.length }}
-              </span>
             </button>
           </nav>
 
@@ -136,13 +123,7 @@
     <footer class="bg-zinc-900/60 border-t border-zinc-800/80 py-4 mt-auto">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between text-xs text-zinc-500 font-mono">
         <div>{{ APP_CONFIG.name }} v{{ APP_CONFIG.version }}</div>
-        <div class="flex items-center space-x-3 text-zinc-400">
-          <span>FastAPI</span>
-          <span>•</span>
-          <span>Vue 3</span>
-          <span>•</span>
-          <span>Playwright</span>
-        </div>
+        <div class="text-zinc-500">{{ APP_CONFIG.tagline }}</div>
       </div>
     </footer>
   </div>

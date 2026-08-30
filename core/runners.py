@@ -341,11 +341,12 @@ async def _handle_post_registration_steps(page, username, progress, account_task
             current_url = page.url.lower()
             content = (await page.content()).lower()
 
-            # Check if account is already complete / landed on dashboard
-            success_urls = ["myaccount.google.com", "mail.google.com", "youtube.com", "workspace.google.com"]
-            if any(u in current_url for u in success_urls):
-                logger.info(f"[POST-REG] Reached destination URL: {current_url}")
-                return True
+            # Check if account is already complete / landed on authenticated dashboard
+            is_signup_lifecycle = any(k in current_url for k in ["accounts.google.com/lifecycle", "accounts.google.com/signup", "accounts.google.com/signin/v2", "flowentry=signup"])
+            if not is_signup_lifecycle:
+                if current_url.startswith("https://myaccount.google.com") or current_url.startswith("https://mail.google.com"):
+                    logger.info(f"[POST-REG] Reached authenticated destination URL: {current_url}")
+                    return True
 
             # 1. Recovery Email Screen
             recovery_signals = [
@@ -690,12 +691,6 @@ async def async_playwright_flow(i, num_accounts, username, first_name, last_name
                     except Exception:
                         continue
 
-                el = await page.wait_for_selector('input[name="firstName"]', timeout=10000)
-                if el:
-                    navigated = True
-            except Exception as yt_nav_err:
-                logger.debug(f"[FLOW] YouTube fallback notice: {yt_nav_err}")
-
         if not navigated:
             logger.error("Could not find Google signup form after trying all URLs.")
             await capture_failure(page, "signup_form_not_found", username)
@@ -727,9 +722,23 @@ async def async_playwright_flow(i, num_accounts, username, first_name, last_name
 
         await _try_click(page, [
             "button:has-text('Next')", "button:has-text('التالي')",
-            "button[type='submit']",
+            "#collectNameNext", "button[type='submit']",
         ])
-        await page.wait_for_timeout(3000)
+        
+        # Actively wait for Birthday & Gender step
+        birthday_ready = False
+        for _ in range(10):
+            if await page.query_selector('select#month, select[name="month"], #month, input[name="day"], #day'):
+                birthday_ready = True
+                break
+            await page.wait_for_timeout(500)
+
+        if not birthday_ready:
+            await _try_click(page, [
+                "button:has-text('Next')", "button:has-text('التالي')",
+                "#collectNameNext", "button[type='submit']",
+            ])
+            await page.wait_for_timeout(2000)
 
         # ── Step 3: Birthday & Gender ─────────────────────────────────────
         _update_progress(progress, account_task, completed=50, description="Entering birthday & gender...")
@@ -738,9 +747,9 @@ async def async_playwright_flow(i, num_accounts, username, first_name, last_name
 
         await _try_click(page, [
             "button:has-text('Next')", "button:has-text('التالي')",
-            "button[type='submit']",
+            "#birthdaygenderNext", "button[type='submit']",
         ])
-        await page.wait_for_timeout(3000)
+        await page.wait_for_timeout(2000)
 
         # Check if gender error appeared — retry if so
         for _gender_retry in range(3):
@@ -758,9 +767,9 @@ async def async_playwright_flow(i, num_accounts, username, first_name, last_name
                     await page.wait_for_timeout(800)
                     await _try_click(page, [
                         "button:has-text('Next')", "button:has-text('التالي')",
-                        "button[type='submit']",
+                        "#birthdaygenderNext", "button[type='submit']",
                     ])
-                    await page.wait_for_timeout(3000)
+                    await page.wait_for_timeout(2500)
                 else:
                     break
             except Exception:
@@ -768,7 +777,7 @@ async def async_playwright_flow(i, num_accounts, username, first_name, last_name
 
         # ── Step 4: Choose username ───────────────────────────────────────
         _update_progress(progress, account_task, completed=60, description="Choosing Gmail username...")
-        await page.wait_for_timeout(2500)
+        await page.wait_for_timeout(2000)
 
         USERNAME_SELECTORS = [
             'input[name="Username"]', 'input[name="username"]', 'input[name="identifier"]',
@@ -874,7 +883,7 @@ async def async_playwright_flow(i, num_accounts, username, first_name, last_name
                 await page.wait_for_timeout(800)
 
             await page.wait_for_timeout(600)
-            await _try_click(page, ["button:has-text('Next')", "button[type='submit']"])
+            await _try_click(page, ["button:has-text('Next')", "button:has-text('التالي')", "#next", "button[type='submit']"])
             await page.wait_for_timeout(3000)
 
             try:
@@ -926,7 +935,7 @@ async def async_playwright_flow(i, num_accounts, username, first_name, last_name
                 continue
 
         await page.wait_for_timeout(600)
-        await _try_click(page, ["button:has-text('Next')", "button[type='submit']"])
+        await _try_click(page, ["button:has-text('Next')", "button:has-text('التالي')", "#passwdNext", "button[type='submit']"])
         await page.wait_for_timeout(4000)
 
         # ── Step 6: Verification (using phone_bypass module) ──────────────
@@ -962,7 +971,7 @@ async def async_playwright_flow(i, num_accounts, username, first_name, last_name
                 await page.wait_for_timeout(600)
                 await _try_click(page, [
                     "button:has-text('Next')", "button:has-text('التالي')",
-                    "button[type='submit']",
+                    "#collectNameNext", "button[type='submit']",
                 ])
                 await page.wait_for_timeout(3000)
             except Exception as e:
@@ -971,7 +980,7 @@ async def async_playwright_flow(i, num_accounts, username, first_name, last_name
 
             await manager.fill_birthday_gender(month, day, year, gender)
             await page.wait_for_timeout(600)
-            await _try_click(page, ["button:has-text('Next')", "button[type='submit']"],
+            await _try_click(page, ["button:has-text('Next')", "button:has-text('التالي')", "#birthdaygenderNext", "button[type='submit']"],
                              is_mobile=is_mobile)
             await page.wait_for_timeout(3000)
 
@@ -990,7 +999,7 @@ async def async_playwright_flow(i, num_accounts, username, first_name, last_name
                         await page.wait_for_timeout(500)
                         break
 
-                await _try_click(page, ["button:has-text('Next')", "button[type='submit']"])
+                await _try_click(page, ["button:has-text('Next')", "button:has-text('التالي')", "#next", "button[type='submit']"])
                 await page.wait_for_timeout(3000)
             except Exception:
                 pass
@@ -1008,7 +1017,7 @@ async def async_playwright_flow(i, num_accounts, username, first_name, last_name
                         await pw2_el.fill(password)
                         break
                 await page.wait_for_timeout(500)
-                await _try_click(page, ["button:has-text('Next')", "button[type='submit']"])
+                await _try_click(page, ["button:has-text('Next')", "button:has-text('التالي')", "#passwdNext", "button[type='submit']"])
                 await page.wait_for_timeout(3000)
             except Exception:
                 pass
@@ -1037,56 +1046,61 @@ async def async_playwright_flow(i, num_accounts, username, first_name, last_name
         # ── Step 7: Post-registration multi-step handling (Recovery, Phone Skip, Review, Terms) ──
         await _handle_post_registration_steps(page, username, progress, account_task, is_mobile=is_mobile)
 
-        # ── Step 8: Verify account was actually created ───────────────────
-        _update_progress(progress, account_task, completed=95, description="Verifying account creation...")
+        # ── Step 8: Verify account was actually created (Tamper-Proof) ────
+        _update_progress(progress, account_task, completed=95, description="Verifying Google account creation...")
 
         account_verified = False
         try:
             current_url = page.url.lower()
-            verified_urls = [
-                "myaccount.google.com", "mail.google.com",
-                "accounts.google.com/signin/continue",
-                "youtube.com", "workspace.google.com",
-                "gds.google.com",
-            ]
-            if any(v in current_url for v in verified_urls):
+            is_signup_lifecycle = any(k in current_url for k in [
+                "accounts.google.com/lifecycle",
+                "accounts.google.com/signup",
+                "accounts.google.com/signin/v2",
+                "flowentry=signup",
+            ])
+
+            # 1. Cookie Authentication Check (Google sets SID, SSID, HSID on authenticated session)
+            cookies = await page.context.cookies(["https://google.com", "https://accounts.google.com"])
+            auth_cookies = {c.get("name", "") for c in cookies if c.get("name") in ["SID", "SSID", "HSID", "SAPISID", "APISID"]}
+
+            if not is_signup_lifecycle and auth_cookies:
                 account_verified = True
-                logger.info(f"Account verified via URL: {current_url}")
+                logger.info(f"[VERIFY] Account confirmed via active session cookies: {auth_cookies}")
 
-            if not account_verified:
-                content = await page.content()
-                content_lower = content.lower()
-                verified_signals = [
-                    "welcome to google", "مرحبًا بك في google",
-                    "your new account", "حسابك الجديد",
-                    "your google account is ready", "حسابك في google جاهز",
-                    "inbox", "primary", "promotions",
-                    "search mail", "compose",
-                ]
-                if any(s in content_lower for s in verified_signals):
-                    account_verified = True
-                    logger.info("Account verified via page content signals")
+            # 2. Destination URL / Landing Check
+            if not account_verified and not is_signup_lifecycle:
+                if current_url.startswith("https://myaccount.google.com") or current_url.startswith("https://mail.google.com"):
+                    content = (await page.content()).lower()
+                    if "sign in" not in content and "use your google account" not in content:
+                        account_verified = True
+                        logger.info(f"[VERIFY] Account confirmed via landing URL: {current_url}")
 
-            if not account_verified:
+            # 3. Direct verification probe against myaccount.google.com
+            if not account_verified and not is_signup_lifecycle:
                 try:
                     await page.goto("https://myaccount.google.com/", timeout=15000, wait_until="domcontentloaded")
-                    await page.wait_for_timeout(3000)
+                    await page.wait_for_timeout(2500)
                     my_url = page.url.lower()
-                    my_content = await page.content()
-                    if "myaccount.google.com" in my_url and "sign in" not in my_content.lower():
-                        account_verified = True
-                        logger.info("Account verified via myaccount.google.com navigation")
-                except Exception:
-                    pass
+                    my_content = (await page.content()).lower()
+                    if "myaccount.google.com" in my_url and "sign in" not in my_url and "accounts.google.com/signin" not in my_url:
+                        if not ("sign in to your account" in my_content or "use your google account" in my_content):
+                            # Re-verify cookies after navigation
+                            cookies = await page.context.cookies(["https://google.com", "https://accounts.google.com"])
+                            auth_cookies = {c.get("name", "") for c in cookies if c.get("name") in ["SID", "SSID", "HSID", "SAPISID", "APISID"]}
+                            if auth_cookies:
+                                account_verified = True
+                                logger.info(f"[VERIFY] Account confirmed via myaccount session probe (cookies: {auth_cookies})")
+                except Exception as probe_err:
+                    logger.debug(f"MyAccount probe error: {probe_err}")
 
         except Exception as verify_err:
-            logger.debug(f"Verification check error (non-fatal): {verify_err}")
+            logger.debug(f"Verification check exception: {verify_err}")
 
         if not account_verified:
-            logger.warning("Could not verify account creation — account may not have been created")
+            logger.error(f"VERIFICATION FAILED: Account was NOT created. Still on page: {page.url}")
             await capture_failure(page, "account_unverified", username)
             _update_progress(progress, account_task, completed=100,
-                            description="[bold yellow]Unverified — account may not exist[/]")
+                            description="[bold red]FAILED: Google account was not created[/]")
             return False, CreationError.UNKNOWN
 
         # ── Done ──────────────────────────────────────────────────────────

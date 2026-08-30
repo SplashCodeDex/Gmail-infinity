@@ -53,34 +53,29 @@ export const SESSION_PRESETS = [
 
 export const SESSION_STATUS_STYLES = {
   running: {
-    badge: 'bg-emerald-950 text-emerald-300 border border-emerald-800',
+    badge: 'bg-zinc-800 text-emerald-300',
     indicator: 'bg-emerald-500',
     label: 'Running',
-    pulse: true,
   },
   completed: {
-    badge: 'bg-indigo-950 text-indigo-300 border border-indigo-800',
-    indicator: 'bg-indigo-500',
+    badge: 'bg-zinc-800 text-zinc-300',
+    indicator: 'bg-zinc-500',
     label: 'Completed',
-    pulse: false,
   },
   failed: {
-    badge: 'bg-rose-950 text-rose-300 border border-rose-800',
+    badge: 'bg-zinc-800 text-rose-300',
     indicator: 'bg-rose-500',
     label: 'Failed',
-    pulse: false,
   },
   stopped: {
-    badge: 'bg-amber-950 text-amber-300 border border-amber-800',
+    badge: 'bg-zinc-800 text-amber-300',
     indicator: 'bg-amber-500',
     label: 'Stopped',
-    pulse: false,
   },
   initializing: {
-    badge: 'bg-purple-950 text-purple-300 border border-purple-800',
-    indicator: 'bg-purple-500',
+    badge: 'bg-zinc-800 text-zinc-300',
+    indicator: 'bg-zinc-500',
     label: 'Initializing',
-    pulse: true,
   },
 }
 

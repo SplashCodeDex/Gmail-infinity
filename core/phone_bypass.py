@@ -874,10 +874,16 @@ async def handle_verification(page, is_mobile=False, use_sms_api=False, progress
         return True, "no_verification", False
 
     # URL-based detection for specific challenge types
-    if "devicephonever" in page_url or "phonechallenge" in page_url:
+    if any(k in page_url for k in ["devicephonever", "phonechallenge", "signinoptions", "challenge"]):
         page_type = "phone"
-    if "signinoptions" in page_url or "challenge" in page_url:
-        page_type = "phone"
+
+    # DOM-level check for phone input even if text signals were missed
+    if page_type == "unknown":
+        phone_input = await _find_input(page, PHONE_INPUT_SELECTORS)
+        if phone_input:
+            page_type = "phone"
+        elif any(s in page_content.lower() for s in ["recovery email", "review your account", "express personalization", "i agree"]):
+            return True, "post_reg_screen", False
 
     if page_type == "qr_code":
         if progress and account_task:
@@ -900,5 +906,9 @@ async def handle_verification(page, is_mobile=False, use_sms_api=False, progress
         should_restart = method in ("send_sms_escaped", "session_reset")
         return success, method, should_restart
 
-    logger.info(f"Page type: {page_type} — assuming no verification needed")
-    return True, "none_detected", False
+    # If post-registration terms or review is already visible
+    if any(s in page_content.lower() for s in SUCCESS_SIGNALS):
+        return True, "success_signals_present", False
+
+    logger.warning(f"Unrecognized verification page type: {page_type}")
+    return False, "unrecognized_challenge", False

@@ -1,20 +1,12 @@
 <template>
-  <div class="surface-card p-6">
+  <div class="surface-card p-6 space-y-4">
     <!-- Header -->
-    <div class="flex flex-col md:flex-row md:items-center justify-between pb-4 mb-5 border-b border-zinc-800 gap-3">
-      <div class="flex items-center space-x-3">
-        <div class="w-9 h-9 rounded-lg bg-indigo-950/60 border border-indigo-800/80 flex items-center justify-center text-indigo-400">
-          <AppIcon name="shield" :size="18" />
+    <div class="flex flex-col md:flex-row md:items-center justify-between pb-4 border-b border-zinc-800 gap-3">
+      <div class="flex items-center space-x-2.5">
+        <div class="w-7 h-7 rounded-lg bg-zinc-800 flex items-center justify-center text-zinc-300">
+          <AppIcon name="shield" :size="14" />
         </div>
-        <div>
-          <h2 class="text-base font-bold text-zinc-100 flex items-center space-x-2">
-            <span>Proxy Network Telemetry & Pool Hub</span>
-            <span class="px-2 py-0.5 rounded-full text-xs font-mono bg-zinc-800 text-zinc-300 border border-zinc-700">
-              {{ allProxies.length || appStore.stats?.proxies?.total || 0 }} Endpoints
-            </span>
-          </h2>
-          <p class="text-xs text-zinc-400">Health verification, latency benchmarks, public harvesting & manual pool ingestion</p>
-        </div>
+        <h2 class="text-sm font-semibold text-zinc-100">Proxy Pool</h2>
       </div>
 
       <!-- Header Action Controls -->
@@ -24,14 +16,14 @@
           @click="handleFetchPublic"
           :disabled="isFetchingPublic"
           class="btn-secondary py-1.5 px-3 text-xs flex items-center space-x-1.5"
-          title="Scrape and harvest fresh public SOCKS5/HTTP proxies"
+          title="Scrape public proxies"
         >
           <AppIcon v-if="!isFetchingPublic" name="download" :size="13" />
           <svg v-else class="animate-spin h-3 w-3 text-indigo-400" viewBox="0 0 24 24">
             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle>
             <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
           </svg>
-          <span>{{ isFetchingPublic ? 'Harvesting...' : 'Fetch Public' }}</span>
+          <span>{{ isFetchingPublic ? 'Fetching...' : 'Fetch Public' }}</span>
         </button>
 
         <!-- Import / Paste Modal Trigger -->
@@ -40,7 +32,7 @@
           class="btn-secondary py-1.5 px-3 text-xs flex items-center space-x-1.5"
         >
           <AppIcon name="plus" :size="13" />
-          <span>Import / Paste</span>
+          <span>Import</span>
         </button>
 
         <!-- Run Latency Test Button -->
@@ -54,33 +46,16 @@
             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle>
             <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
           </svg>
-          <span>{{ isTesting ? 'Benchmarking...' : 'Test All' }}</span>
+          <span>{{ isTesting ? 'Testing...' : 'Test All' }}</span>
         </button>
       </div>
     </div>
 
-    <!-- Metrics Cards (Solid Colors, Zero Gradient) -->
-    <div class="grid grid-cols-3 gap-3 mb-5">
-      <div class="bg-zinc-950/80 p-3.5 rounded-xl border border-zinc-800 text-center">
-        <div class="text-[11px] font-mono uppercase tracking-wider text-zinc-400">Total Configured</div>
-        <div class="text-xl font-bold font-mono text-zinc-100 mt-0.5">
-          {{ proxyData.total || allProxies.length || 0 }}
-        </div>
-      </div>
-
-      <div class="bg-zinc-950/80 p-3.5 rounded-xl border border-emerald-800/60 text-center">
-        <div class="text-[11px] font-mono uppercase tracking-wider text-emerald-400">Healthy & Online</div>
-        <div class="text-xl font-bold font-mono text-emerald-400 mt-0.5">
-          {{ proxyData.healthy || appStore.stats?.proxies?.healthy || 0 }}
-        </div>
-      </div>
-
-      <div class="bg-zinc-950/80 p-3.5 rounded-xl border border-rose-800/60 text-center">
-        <div class="text-[11px] font-mono uppercase tracking-wider text-rose-400">Unreachable / Offline</div>
-        <div class="text-xl font-bold font-mono text-rose-400 mt-0.5">
-          {{ proxyData.unhealthy || 0 }}
-        </div>
-      </div>
+    <!-- Compact Metrics Summary Bar -->
+    <div class="flex items-center justify-between px-4 py-2 bg-zinc-950/80 rounded-lg border border-zinc-800 text-xs font-mono">
+      <div>Total: <span class="text-zinc-200 font-semibold">{{ proxyData.total || allProxies.length || 0 }}</span></div>
+      <div>Online: <span class="text-emerald-400 font-semibold">{{ proxyData.healthy || appStore.stats?.proxies?.healthy || 0 }}</span></div>
+      <div>Offline: <span class="text-rose-400 font-semibold">{{ proxyData.unhealthy || 0 }}</span></div>
     </div>
 
     <!-- Proxy List Table/View -->
@@ -91,7 +66,7 @@
             v-model="search"
             type="text"
             placeholder="Filter proxy IP / port..."
-            class="w-full pl-8 pr-3 py-1 bg-zinc-900 border border-zinc-700 rounded-lg text-xs text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-indigo-500 font-mono"
+            class="w-full pl-8 pr-3 py-1 bg-zinc-900 border border-zinc-700 rounded-lg text-xs text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-zinc-500 font-mono"
           />
           <AppIcon name="search" :size="13" class="absolute left-2.5 top-1.5 text-zinc-500" />
         </div>
@@ -109,14 +84,14 @@
             <button
               @click="filterMode = 'healthy'"
               class="px-2.5 py-1 rounded text-[11px] font-mono transition"
-              :class="filterMode === 'healthy' ? 'bg-emerald-950 text-emerald-300 border border-emerald-800' : 'text-zinc-500 hover:text-zinc-300'"
+              :class="filterMode === 'healthy' ? 'bg-zinc-800 text-emerald-300' : 'text-zinc-500 hover:text-zinc-300'"
             >
               Healthy
             </button>
             <button
               @click="filterMode = 'unhealthy'"
               class="px-2.5 py-1 rounded text-[11px] font-mono transition"
-              :class="filterMode === 'unhealthy' ? 'bg-rose-950 text-rose-300 border border-rose-800' : 'text-zinc-500 hover:text-zinc-300'"
+              :class="filterMode === 'unhealthy' ? 'bg-zinc-800 text-rose-300' : 'text-zinc-500 hover:text-zinc-300'"
             >
               Unhealthy
             </button>
@@ -127,7 +102,7 @@
             v-if="allProxies.length > 0"
             @click="handleClearPool"
             class="p-1.5 text-zinc-500 hover:text-rose-400 hover:bg-zinc-900 rounded transition"
-            title="Clear all proxies from pool"
+            title="Clear all proxies"
           >
             <AppIcon name="trash-2" :size="14" />
           </button>
@@ -140,9 +115,9 @@
           v-if="filteredProxies.length === 0"
           class="p-8 text-center text-zinc-500"
         >
-          <AppIcon name="shield" :size="24" class="mx-auto mb-2 text-zinc-600" />
-          <span v-if="allProxies.length === 0">No proxies configured. Click "Import / Paste" or "Fetch Public" to populate pool.</span>
-          <span v-else>No proxies match filter "{{ search }}"</span>
+          <AppIcon name="shield" :size="20" class="mx-auto mb-2 text-zinc-600" />
+          <span v-if="allProxies.length === 0">No proxies configured. Click "Import" or "Fetch Public" to populate pool.</span>
+          <span v-else>No proxies match filter</span>
         </div>
 
         <div
@@ -150,31 +125,27 @@
           :key="i"
           class="p-3 flex items-center justify-between hover:bg-zinc-900/60 transition group"
         >
-          <div class="flex items-center space-x-3 min-w-0 pr-2">
-            <span
-              class="w-2 h-2 rounded-full shrink-0"
-              :class="p.healthy !== false ? 'bg-emerald-500' : 'bg-rose-500'"
-            ></span>
+          <div class="min-w-0 pr-2">
             <span class="text-zinc-200 truncate">{{ p.proxy }}</span>
           </div>
 
           <div class="flex items-center space-x-3 shrink-0">
-            <!-- Latency Badge -->
+            <!-- Latency / Status -->
             <span
               v-if="p.latency_ms"
-              class="px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-950 text-emerald-300 border border-emerald-800"
+              class="text-xs font-semibold text-emerald-400"
             >
               {{ p.latency_ms }} ms
             </span>
             <span
               v-else-if="p.healthy === false"
-              class="px-2 py-0.5 rounded text-[11px] font-semibold bg-rose-950 text-rose-300 border border-rose-800"
+              class="text-xs font-semibold text-rose-400"
             >
               Offline
             </span>
             <span
               v-else
-              class="px-2 py-0.5 rounded text-[11px] font-mono text-zinc-500 bg-zinc-900 border border-zinc-800"
+              class="text-xs text-zinc-500"
             >
               Untested
             </span>
@@ -182,8 +153,8 @@
             <!-- Copy Button -->
             <button
               @click="copyProxy(p.proxy)"
-              class="p-1 text-zinc-500 hover:text-zinc-200 rounded opacity-0 group-hover:opacity-100 transition"
-              title="Copy proxy string"
+              class="p-1 text-zinc-500 hover:text-zinc-200 rounded transition"
+              title="Copy proxy"
             >
               <AppIcon name="copy" :size="13" />
             </button>

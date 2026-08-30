@@ -37,6 +37,8 @@ data/gmail_creator.log
 data/accounts.txt
 data/chain.json
 data/accounts_export_*
+data/intelligence_*.json
+data/screenshots/
 *.log
 
 # ─── IDE ───

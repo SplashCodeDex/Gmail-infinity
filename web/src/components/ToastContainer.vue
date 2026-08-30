@@ -44,18 +44,8 @@ import AppIcon from './AppIcon.vue'
 
 const toastStore = useToastStore()
 
-function getToastBorderClass(type) {
-  switch (type) {
-    case 'success':
-      return 'border-emerald-800/80 bg-zinc-900'
-    case 'error':
-      return 'border-rose-800/80 bg-zinc-900'
-    case 'warning':
-      return 'border-amber-800/80 bg-zinc-900'
-    case 'info':
-    default:
-      return 'border-zinc-700 bg-zinc-900'
-  }
+function getToastBorderClass() {
+  return 'border-zinc-700 bg-zinc-900 shadow-xl'
 }
 
 function getToastIconColor(type) {
