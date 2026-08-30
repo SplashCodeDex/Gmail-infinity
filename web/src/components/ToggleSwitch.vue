@@ -2,7 +2,7 @@
   <div class="flex items-center justify-between p-3 bg-gray-700/50 rounded-lg">
     <div class="flex items-center">
       <span class="mr-3">{{ icon }}</span>
-      <span class="text-sm font-medium">{{ label }}</span>
+      <span class="text-sm font-medium text-white">{{ label }}</span>
     </div>
     <label class="relative inline-flex items-center cursor-pointer">
       <input
@@ -12,15 +12,8 @@
         class="sr-only peer"
       />
       <div
-        :class="[
-          'w-11 h-6 rounded-full peer',
-          'peer-focus:ring-2 peer-focus:ring-purple-500',
-          'after:content-[\"\"] after:absolute after:top-[2px] after:left-[2px]',
-          'after:bg-white after:rounded-full after:h-5 after:w-5',
-          'after:transition-all',
-          'peer-checked:after:translate-x-full peer-checked:after:border-white',
-          bgColor
-        ]"
+        class="w-11 h-6 rounded-full peer peer-focus:ring-2 peer-focus:ring-purple-500 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full peer-checked:after:border-white transition-colors"
+        :class="bgColor"
       ></div>
     </label>
   </div>

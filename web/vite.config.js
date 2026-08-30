@@ -25,12 +25,11 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     sourcemap: false,
-    minify: 'terser',
+    minify: 'esbuild',
     rollupOptions: {
       output: {
         manualChunks: {
-          'vue-vendor': ['vue', 'vue-router', 'pinia'],
-          'charts': ['chart.js', 'vue-chartjs'],
+          'vendor': ['vue', 'vue-router', 'pinia', 'axios'],
         },
       },
     },
