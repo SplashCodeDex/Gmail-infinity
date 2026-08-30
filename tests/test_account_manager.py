@@ -63,6 +63,19 @@ class TestExports:
         data = json.load(open(out, encoding="utf-8"))
         assert data[0]["email"] == "a@gmail.com"
 
+    def test_export_all_zip(self, manager, tmp_path):
+        import zipfile
+        manager.save(email="a@gmail.com", password="pw1", first_name="A", last_name="B")
+        out = manager.export_all(filepath=str(tmp_path / "out.zip"))
+        assert zipfile.is_zipfile(out)
+        with zipfile.ZipFile(out, "r") as zf:
+            names = set(zf.namelist())
+            assert names == {"accounts.json", "accounts.csv", "accounts.txt"}
+            assert "a@gmail.com" in zf.read("accounts.txt").decode("utf-8")
+            assert "a@gmail.com" in zf.read("accounts.csv").decode("utf-8")
+            assert "a@gmail.com" in zf.read("accounts.json").decode("utf-8")
+
+
 
 class TestLegacyMigration:
     def test_migrate_from_legacy_files(self, manager, legacy_dir):

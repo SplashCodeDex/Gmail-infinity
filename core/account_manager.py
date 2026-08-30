@@ -129,6 +129,45 @@ class AccountManager:
         logger.info(f"Exported {len(accounts)} accounts to TXT: {filepath}")
         return filepath
 
+    def export_all(self, filepath=None):
+        import io
+        import zipfile
+
+        if not filepath:
+            filepath = os.path.join(
+                "data", f"accounts_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip")
+        filepath = str(PROJECT_ROOT / filepath) if not os.path.isabs(filepath) else filepath
+        accounts = self.db.get_all_accounts()
+        os.makedirs(os.path.dirname(filepath), exist_ok=True)
+
+        with zipfile.ZipFile(filepath, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+            # 1. accounts.json
+            zf.writestr("accounts.json", json.dumps(accounts, indent=2, ensure_ascii=False))
+
+            # 2. accounts.csv
+            csv_buf = io.StringIO()
+            writer = csv.writer(csv_buf)
+            writer.writerow(["Email", "Password", "First Name", "Last Name",
+                             "Proxy", "Strategy", "SMS Service", "Status", "Created At"])
+            for acc in accounts:
+                writer.writerow([
+                    acc.get("email", ""), acc.get("password", ""),
+                    acc.get("first_name", ""), acc.get("last_name", ""),
+                    acc.get("proxy", ""), acc.get("strategy", ""),
+                    acc.get("sms_service", ""), acc.get("status", ""),
+                    acc.get("created_at", ""),
+                ])
+            zf.writestr("accounts.csv", csv_buf.getvalue())
+
+            # 3. accounts.txt
+            txt_buf = io.StringIO()
+            for acc in accounts:
+                txt_buf.write(f"{acc.get('email', '')}:{acc.get('password', '')}\n")
+            zf.writestr("accounts.txt", txt_buf.getvalue())
+
+        logger.info(f"Exported {len(accounts)} accounts to ZIP archive: {filepath}")
+        return filepath
+
     def migrate_old_data(self, txt_path=None, json_path=None):
         """One-time import of legacy accounts.txt / accounts.json into SQLite.
         Idempotent: duplicate emails are skipped by the UNIQUE constraint."""

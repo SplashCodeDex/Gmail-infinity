@@ -36,6 +36,7 @@ temp_audio/
 data/gmail_creator.log
 data/accounts.txt
 data/chain.json
+data/accounts_export_*
 *.log
 
 # ─── IDE ───

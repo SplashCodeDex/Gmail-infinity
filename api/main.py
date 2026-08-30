@@ -2,6 +2,8 @@
 Gmail Infinity Factory - FastAPI Backend
 Ultra-lightweight, async API with WebSocket support.
 """
+import os
+import sys
 import asyncio
 import logging
 import threading
@@ -277,14 +279,42 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# CORS
+# CORS & Security Hardening
+allowed_origins_env = os.getenv("ALLOWED_ORIGINS", "")
+if allowed_origins_env:
+    allowed_origins = [o.strip() for o in allowed_origins_env.split(",") if o.strip()]
+else:
+    allowed_origins = [
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://localhost:8000",
+        "http://127.0.0.1:8000",
+    ]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def verify_api_token(request, call_next):
+    """Optional token authentication. If API_SECRET_TOKEN is set in .env,
+    requests to /api/* must supply a matching X-API-Key or Bearer token."""
+    token = os.getenv("API_SECRET_TOKEN", "")
+    if token:
+        path = request.url.path
+        if path.startswith("/api/"):
+            auth_header = request.headers.get("Authorization", "")
+            api_key = request.headers.get("X-API-Key", "")
+            provided = api_key or (auth_header.replace("Bearer ", "").strip() if auth_header.startswith("Bearer ") else auth_header.strip())
+            if provided != token:
+                from fastapi.responses import JSONResponse
+                return JSONResponse(status_code=401, content={"detail": "Unauthorized: Invalid or missing API token"})
+    return await call_next(request)
 
 
 # ============================================================================
@@ -300,10 +330,13 @@ async def websocket_endpoint(websocket: WebSocket):
             # Handle client messages if needed
     except WebSocketDisconnect:
         manager.disconnect(websocket)
+    except Exception as e:
+        logging.error(f"WebSocket error: {e}")
+        manager.disconnect(websocket)
 
 
 # ============================================================================
-# API Routes
+# API Endpoints
 # ============================================================================
 
 @app.get("/api/health")
@@ -314,23 +347,20 @@ async def health_check():
 @app.get("/api/config")
 async def get_config():
     return {
+        "engine": Config.ENGINE_MODE,
+        "headless": Config.HEADLESS,
+        "use_proxies": Config.ENABLE_PROXY,
+        "proxy_type": Config.PROXY_TYPE,
+        "warmup_enabled": True,
+        "delay_between_accounts": Config.DELAY_BETWEEN_ACCOUNTS,
         "password_set": bool(Config.YOUR_PASSWORD),
         "sms_providers": {
-            "fivesim": bool(Config.FIVESIM_API_KEY),
-            "sms_activate": bool(Config.SMS_ACTIVATE_API_KEY),
+            "5sim": bool(Config.FIVESIM_API_KEY),
+            "sms-activate": bool(Config.SMS_ACTIVATE_API_KEY),
             "onlinesim": bool(Config.ONLINESIM_API_KEY),
+            "getsms": bool(Config.GETSMS_API_KEY),
         },
-        "captcha_providers": {
-            "twocaptcha": bool(Config.TWOCAPTCHA_API_KEY),
-            "anticaptcha": bool(Config.ANTICAPTCHA_API_KEY),
-        },
-        "proxies": {
-            "enabled": Config.ENABLE_PROXY,
-            "count": proxy_manager.count,
-            "healthy": proxy_manager.get_stats().get('healthy', 0),
-        },
-        "engine": Config.ENGINE_MODE,
-        "headless": Config.HEADLESS_MODE,
+        "anti_captcha_set": bool(Config.ANTICAPTCHA_API_KEY or Config.TWOCAPTCHA_API_KEY or Config.CAPMONSTER_API_KEY),
     }
 
 
@@ -340,18 +370,34 @@ async def get_stats():
     proxy_stats = proxy_manager.get_stats()
 
     return {
-        "accounts": account_stats,
-        "proxies": proxy_stats,
-        "active_sessions": len([s for s in active_sessions.values() if s.status == 'running'])
+        "accounts": {
+            "total": account_stats['total'],
+            "successes": account_stats['active'],
+            "failures": account_stats['total'] - account_stats['active'],
+            "success_rate": account_stats['health_rate'],
+            "strategies": account_stats['strategies'],
+        },
+        "proxies": {
+            "total": proxy_stats['total'],
+            "healthy": proxy_stats['healthy'],
+            "unhealthy": proxy_stats['unhealthy'],
+            "avg_response_time": proxy_stats['avg_latency_ms'],
+        },
+        "active_sessions": len([s for s in active_sessions.values() if s.status == 'running']),
+        "total_sessions": len(active_sessions)
     }
 
 
 @app.get("/api/accounts")
-async def get_accounts():
+async def get_accounts(limit: int = 100, offset: int = 0):
     accounts = account_manager.get_all()
+    total = len(accounts)
+
     return {
-        "accounts": accounts,
-        "count": len(accounts)
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+        "accounts": accounts[offset:offset + limit]
     }
 
 
@@ -391,12 +437,11 @@ async def export_accounts(request: ExportRequest):
         'json': account_manager.export_json,
         'csv': account_manager.export_csv,
         'txt': account_manager.export_txt,
+        'all': account_manager.export_all,
     }
     exporter = exporters.get(request.format)
     if exporter is None:
-        # Raised outside the try/except so it reaches the client as a 400,
-        # not re-wrapped as a 500 by the generic handler below.
-        raise HTTPException(400, f"Invalid format '{request.format}'. Supported: json, csv, txt")
+        raise HTTPException(400, f"Invalid format '{request.format}'. Supported: json, csv, txt, all")
 
     try:
         path = exporter()
@@ -406,7 +451,16 @@ async def export_accounts(request: ExportRequest):
         logging.exception("Account export failed")
         raise HTTPException(500, f"Export failed: {e}")
 
-    return FileResponse(path, filename=Path(path).name)
+    media_types = {
+        '.json': 'application/json',
+        '.csv': 'text/csv',
+        '.txt': 'text/plain',
+        '.zip': 'application/zip',
+    }
+    ext = Path(path).suffix.lower()
+    media_type = media_types.get(ext, 'application/octet-stream')
+
+    return FileResponse(path, filename=Path(path).name, media_type=media_type)
 
 
 @app.post("/api/session/start")
@@ -614,11 +668,15 @@ async def get_engine_capabilities():
 # ============================================================================
 
 def main():
+    host = os.getenv("API_HOST", "127.0.0.1")
+    port = int(os.getenv("API_PORT", "8000"))
+    reload = os.getenv("API_RELOAD", "False").lower() in ("1", "true", "yes")
+
     uvicorn.run(
         "main:app",
-        host="0.0.0.0",
-        port=8000,
-        reload=True,
+        host=host,
+        port=port,
+        reload=reload,
         log_level="info"
     )
 
