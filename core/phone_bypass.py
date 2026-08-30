@@ -280,7 +280,7 @@ async def handle_phone_page(page, is_mobile=False, sms_api_available=False):
                     if (not any(s in content.lower() for s in PHONE_SIGNALS + QR_SIGNALS)
                         and "devicephonever" not in current_url
                         and "phonechallenge" not in current_url):
-                        logger.info(f"Send SMS escaped to fresh signup page")
+                        logger.info("Send SMS escaped to fresh signup page")
                         return True, "send_sms_escaped"
                     else:
                         logger.debug(f"URL {url[:60]} still shows verification")
@@ -570,7 +570,6 @@ async def _sms_api_verification(page, is_mobile=False):
         await page.wait_for_timeout(800)
 
         # Step 4: Click Next/Send to submit phone number
-        old_url = page.url
         await _try_click(page, NEXT_BUTTON_SELECTORS, is_mobile=is_mobile)
         await page.wait_for_timeout(4000)
 
@@ -585,7 +584,7 @@ async def _sms_api_verification(page, is_mobile=False):
                 "too many attempts", "try again later",
             ]
             if any(err in error_lower for err in phone_errors):
-                logger.warning(f"SMS API: Phone number rejected by Google")
+                logger.warning("SMS API: Phone number rejected by Google")
                 await cancel_order(service_name, order_id)
                 return False, "sms_phone_rejected"
         except Exception:
@@ -818,7 +817,7 @@ async def handle_qr_page(page, is_mobile=False):
                 if el:
                     content = await page.content()
                     if not any(s in content.lower() for s in QR_SIGNALS):
-                        logger.info(f"QR escaped to fresh signup via URL")
+                        logger.info("QR escaped to fresh signup via URL")
                         return True, True
             except Exception:
                 pass

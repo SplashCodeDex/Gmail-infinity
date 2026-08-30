@@ -52,16 +52,14 @@ def validate_config():
     if engine not in ('playwright', 'appium'):
         errors.append(f"Invalid ENGINE_MODE: '{engine}' (must be playwright/appium — selenium engine was removed)")
 
+    import importlib.util
+
     if engine == 'playwright':
-        try:
-            import playwright
-        except ImportError:
+        if importlib.util.find_spec('playwright') is None:
             warnings.append("ENGINE_MODE=playwright but playwright not installed. Run: pip install playwright && playwright install")
 
     if engine == 'appium':
-        try:
-            import appium
-        except ImportError:
+        if importlib.util.find_spec('appium') is None:
             errors.append("ENGINE_MODE=appium but appium not installed. Run: pip install Appium-Python-Client")
 
     # SMS services check
@@ -74,14 +72,6 @@ def validate_config():
     active_sms = [name for name, val in sms_keys if val and "YOUR_" not in val]
     if not active_sms:
         warnings.append("No SMS API keys configured. Premium mode won't work without at least one.")
-
-    # Captcha services
-    captcha_keys = [
-        ("TWOCAPTCHA_API_KEY", Config.TWOCAPTCHA_API_KEY),
-        ("ANTICAPTCHA_API_KEY", Config.ANTICAPTCHA_API_KEY),
-        ("CAPMONSTER_API_KEY", Config.CAPMONSTER_API_KEY),
-    ]
-    active_captcha = [name for name, val in captcha_keys if val and "YOUR_" not in val]
 
     # Proxy
     if Config.ENABLE_PROXY:

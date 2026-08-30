@@ -6,6 +6,7 @@ import os
 import logging
 from datetime import datetime
 import json
+from typing import Optional, List, Dict
 
 from config.settings import PROJECT_ROOT
 
@@ -109,6 +110,18 @@ class DatabaseManager:
                     CREATE INDEX IF NOT EXISTS idx_session_logs_session_id ON session_logs (session_id)
                 ''')
 
+                cursor.execute('''
+                    CREATE TABLE IF NOT EXISTS session_strategy_stats (
+                        session_id TEXT NOT NULL,
+                        strategy TEXT NOT NULL,
+                        attempts INTEGER DEFAULT 0,
+                        successes INTEGER DEFAULT 0,
+                        failures INTEGER DEFAULT 0,
+                        avg_time REAL DEFAULT 0.0,
+                        PRIMARY KEY (session_id, strategy)
+                    )
+                ''')
+
                 conn.commit()
                 logger.debug("Database initialized successfully.")
         except sqlite3.Error as e:
@@ -123,6 +136,8 @@ class DatabaseManager:
             ("phone_number", "TEXT DEFAULT ''"),
             ("notes", "TEXT DEFAULT ''"),
             ("recovery_email", "TEXT DEFAULT ''"),
+            ("health_note", "TEXT DEFAULT ''"),
+            ("last_health_checked_at", "TEXT DEFAULT ''"),
         ]
         try:
             with self._get_connection() as conn:
@@ -263,6 +278,102 @@ class DatabaseManager:
         except sqlite3.Error as e:
             logger.error(f"Failed to update account {email}: {e}")
             return False
+
+    def update_account_health(self, email: str, status: Optional[str] = None, note: str = "", checked_at: Optional[str] = None) -> bool:
+        """Update account health diagnostics and conditionally flip status if definitive.
+
+        Definitive statuses that flip the account status:
+          active, unverified, password_changed, suspended
+        Ambiguous IMAP/network statuses (locked, network_error, error, unknown):
+          Only update health_note and last_health_checked_at. Never clobber status or creation notes.
+        """
+        DEFINITIVE_STATUSES = {"active", "unverified", "password_changed", "suspended"}
+        now_str = checked_at or datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                if status and status in DEFINITIVE_STATUSES:
+                    cursor.execute('''
+                        UPDATE accounts
+                        SET status = ?, health_note = ?, last_health_checked_at = ?
+                        WHERE email = ?
+                    ''', (status, note, now_str, email))
+                else:
+                    cursor.execute('''
+                        UPDATE accounts
+                        SET health_note = ?, last_health_checked_at = ?
+                        WHERE email = ?
+                    ''', (note, now_str, email))
+                conn.commit()
+                return cursor.rowcount > 0
+        except sqlite3.Error as e:
+            logger.error(f"Failed to update account health for {email}: {e}")
+            return False
+
+    def email_exists(self, email: str) -> bool:
+        """Check if an email already exists in the vault."""
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute('SELECT 1 FROM accounts WHERE email = ? LIMIT 1', (email,))
+                return cursor.fetchone() is not None
+        except sqlite3.Error as e:
+            logger.error(f"Failed to check email existence for {email}: {e}")
+            return False
+
+    def save_session_strategy_stats(self, session_id: str, rows: List[Dict]) -> bool:
+        """Persist real per-strategy execution metrics for a session."""
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                for row in rows:
+                    strat = row.get("strategy", "")
+                    attempts = row.get("attempts", 0)
+                    successes = row.get("successes", 0)
+                    failures = row.get("failures", 0)
+                    avg_time = row.get("avg_time", 0.0)
+                    if strat:
+                        cursor.execute('''
+                            INSERT OR REPLACE INTO session_strategy_stats
+                            (session_id, strategy, attempts, successes, failures, avg_time)
+                            VALUES (?, ?, ?, ?, ?, ?)
+                        ''', (session_id, strat, attempts, successes, failures, avg_time))
+                conn.commit()
+                return True
+        except sqlite3.Error as e:
+            logger.error(f"Failed to save session strategy stats for {session_id}: {e}")
+            return False
+
+    def get_recent_strategy_stats(self, limit_sessions: int = 20) -> List[Dict]:
+        """Aggregate real per-strategy performance across recent sessions."""
+        try:
+            with self._get_connection() as conn:
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
+                cursor.execute('''
+                    SELECT DISTINCT session_id FROM session_strategy_stats
+                    ORDER BY rowid DESC LIMIT ?
+                ''', (limit_sessions,))
+                recent_sids = [r["session_id"] for r in cursor.fetchall()]
+                if not recent_sids:
+                    return []
+
+                placeholders = ",".join("?" for _ in recent_sids)
+                cursor.execute(f'''
+                    SELECT strategy,
+                           SUM(attempts) as total_attempts,
+                           SUM(successes) as total_successes,
+                           SUM(failures) as total_failures,
+                           AVG(avg_time) as avg_time
+                    FROM session_strategy_stats
+                    WHERE session_id IN ({placeholders})
+                    GROUP BY strategy
+                ''', recent_sids)
+                return [dict(r) for r in cursor.fetchall()]
+        except sqlite3.Error as e:
+            logger.error(f"Failed to get recent strategy stats: {e}")
+            return []
 
     def log_event(self, level, message):
         try:

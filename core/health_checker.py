@@ -4,7 +4,6 @@ Attempts IMAP login to check if account is active/suspended/locked.
 """
 import logging
 import imaplib
-import time
 from datetime import datetime
 
 logger = logging.getLogger('gmail_creator_health')

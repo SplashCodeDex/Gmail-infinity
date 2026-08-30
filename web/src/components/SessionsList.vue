@@ -75,6 +75,15 @@
             <span>Terminate Session</span>
           </button>
         </div>
+        <div v-else-if="canResume(session)" class="pt-1">
+          <button
+            @click="handleResume(session.id)"
+            class="btn-secondary w-full py-1.5 text-xs border-indigo-500/30 text-indigo-400 hover:bg-indigo-950/40"
+          >
+            <AppIcon name="play" :size="13" class="mr-1.5" />
+            <span>Resume Remaining ({{ (session.progress?.total || 0) - ((session.progress?.successes || 0) + (session.progress?.failures || 0)) }})</span>
+          </button>
+        </div>
       </div>
     </div>
   </div>
@@ -91,7 +100,7 @@ const props = defineProps({
   },
 })
 
-const emit = defineEmits(['stop-session'])
+const emit = defineEmits(['stop-session', 'resume-session'])
 
 function getProgressPercent(session) {
   if (!session?.progress?.total) return 0
@@ -103,7 +112,19 @@ function getStatusBadgeClass(status) {
   return SESSION_STATUS_STYLES[status]?.badge || 'bg-zinc-800 text-zinc-400 border-zinc-700'
 }
 
+function canResume(session) {
+  const resumableStatuses = ['interrupted', 'stopped', 'failed', 'completed']
+  if (!resumableStatuses.includes(session.status)) return false
+  const total = session.progress?.total || 0
+  const completed = (session.progress?.successes || 0) + (session.progress?.failures || 0)
+  return total > completed
+}
+
 function handleStop(sessionId) {
   emit('stop-session', sessionId)
+}
+
+function handleResume(sessionId) {
+  emit('resume-session', sessionId)
 }
 </script>

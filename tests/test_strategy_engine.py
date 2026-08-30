@@ -66,18 +66,32 @@ class TestAdaptiveStrategyEngine:
 
     def test_load_historical_learning_from_db(self):
         class MockDB:
-            def get_session_history(self, limit=100):
+            def get_recent_strategy_stats(self, limit_sessions=20):
                 return [
                     {
+                        "strategy": "standard",
                         "total_attempts": 10,
-                        "successes": 8,
-                        "strategies_used": '{"standard": 6, "youtube": 4}',
+                        "total_successes": 9,
+                        "total_failures": 1,
+                        "avg_time": 25.0,
+                    },
+                    {
+                        "strategy": "youtube",
+                        "total_attempts": 10,
+                        "total_successes": 1,
+                        "total_failures": 9,
+                        "avg_time": 60.0,
                     }
                 ]
 
         engine = AdaptiveStrategyEngine(db=MockDB())
-        assert engine.strategy_stats["standard"]["attempts"] == 6
-        assert engine.strategy_stats["standard"]["successes"] == 4  # 6 * 0.8 = 4
-        assert engine.strategy_stats["youtube"]["attempts"] == 4
-        assert engine.get_strategy_score("standard") > 0.5
+        assert engine.strategy_stats["standard"]["attempts"] == 10
+        assert engine.strategy_stats["standard"]["successes"] == 9
+        assert engine.strategy_stats["youtube"]["attempts"] == 10
+        assert engine.strategy_stats["youtube"]["successes"] == 1
+
+        # Real scoring: standard (90% success) >> youtube (10% success)
+        assert engine.get_strategy_score("standard") > 0.8
+        assert engine.get_strategy_score("youtube") < 0.35
+
 

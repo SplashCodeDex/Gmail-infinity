@@ -21,8 +21,7 @@ import random
 import logging
 import argparse
 import hashlib
-import asyncio
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Dict, List, Optional, Tuple
 from collections import defaultdict, deque
 from pathlib import Path
@@ -59,13 +58,11 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.progress import Progress, SpinnerColumn, BarColumn, TextColumn, TimeElapsedColumn, TaskProgressColumn
 from rich.table import Table
-from rich.live import Live
-from rich.layout import Layout
 
 from config.settings import Config
 from core.account_manager import account_manager
 from core.proxy_manager import proxy_manager
-from core.retry_engine import retry_engine
+from core.retry_engine import RetryEngine
 from core.strategy_engine import AdaptiveStrategyEngine
 
 console = Console()
@@ -161,7 +158,7 @@ class EnhancedCreator:
         # Intelligence engines
         self.strategy_engine = AdaptiveStrategyEngine(db=self.db)
         self.proxy_manager = proxy_manager
-        self.retry_engine = retry_engine
+        self.retry_engine = RetryEngine()
         self.checkpoint_manager = CheckpointManager()
 
         # State
@@ -318,25 +315,32 @@ class EnhancedCreator:
         console.print("\n")
 
     def generate_username(self) -> Tuple[str, List[str]]:
-        """Generate unique username with collision detection."""
+        """Generate unique username with collision detection against session and database vault."""
         from core.identity import generate_name
 
-        # Generate and check for uniqueness
-        max_attempts = 10
+        max_attempts = 15
         for _ in range(max_attempts):
             name = generate_name()
             parts = name.split()
             first = parts[0].lower() if parts else "user"
             last = parts[-1].lower() if len(parts) > 1 else "gmail"
+            first = "".join(c for c in first if c.isalnum())
+            last = "".join(c for c in last if c.isalnum())
             username = f"{first}{last}{random.randint(1000, 9999)}"
+            email_candidate = f"{username}@gmail.com"
 
-            # Check if username already created in this session
-            if not any(acc['email'].startswith(username) for acc in self.created_accounts):
+            # Check in-memory session and SQLite database vault
+            session_collision = any(acc.get('email', '').lower() == email_candidate for acc in self.created_accounts)
+            db_collision = self.db.email_exists(email_candidate) if hasattr(self.db, 'email_exists') else False
+
+            if not session_collision and not db_collision:
                 return username, parts
 
-        # Fallback with timestamp
-        timestamp = int(time.time()) % 10000
-        return f"user{timestamp}", ["User", "Account"]
+        # Fallback with timestamp and random hex
+        import os
+        timestamp = int(time.time()) % 100000
+        fallback_user = f"user{timestamp}{os.urandom(2).hex()}"
+        return fallback_user, ["User", "Account"]
 
     def create_account_with_intelligence(self, index: int, progress=None, task_id=None) -> Dict:
         """Create single account with full intelligence and retry logic."""
@@ -431,6 +435,7 @@ class EnhancedCreator:
                         password, progress, task_id, proxy,
                         use_sms_api=self.use_sms, flow_mode=strategy,
                         headless=self.headless,
+                        retry_engine=self.retry_engine,
                     )
                 elif engine == 'appium':
                     from core.runners import run_appium_flow
@@ -595,11 +600,11 @@ class EnhancedCreator:
                     except Exception as e:
                         logging.error(f"Worker exception for account {idx}: {e}")
                         self.failures += 1
-                        progress.update(task_id, description=f"[red]✗ Worker error[/red]")
+                        progress.update(task_id, description="[red]✗ Worker error[/red]")
 
     def create_accounts_sequential(self):
         """Create accounts sequentially (safer, more controlled)."""
-        console.print(f"\n[bold green]📝 Starting sequential creation...[/bold green]\n")
+        console.print("\n[bold green]📝 Starting sequential creation...[/bold green]\n")
 
         remaining_indices = [i for i in range(self.num_accounts) if i not in self.completed_indices]
 
@@ -938,6 +943,23 @@ class EnhancedCreator:
 
     def save_to_database(self):
         """Save session data to database."""
+        # Always persist real per-strategy performance aggregates to session_strategy_stats
+        try:
+            sid = self.session_id or self.checkpoint_manager.current_session_id
+            strat_rows = []
+            for strat, s_data in self.strategy_engine.strategy_stats.items():
+                strat_rows.append({
+                    "strategy": strat,
+                    "attempts": s_data.get("attempts", 0),
+                    "successes": s_data.get("successes", 0),
+                    "failures": s_data.get("failures", 0),
+                    "avg_time": s_data.get("avg_time", 0.0)
+                })
+            if strat_rows and hasattr(self.db, 'save_session_strategy_stats'):
+                self.db.save_session_strategy_stats(sid, strat_rows)
+        except Exception as e:
+            logging.error(f"Failed to persist strategy stats: {e}")
+
         if self.session_id:
             # API owns the canonical session record in SQLite; skip legacy insert
             return

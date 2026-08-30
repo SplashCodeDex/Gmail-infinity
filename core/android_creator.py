@@ -7,7 +7,6 @@ from appium.webdriver.common.appiumby import AppiumBy
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
-from config.settings import Config
 
 logger = logging.getLogger('gmail_creator_appium')
 

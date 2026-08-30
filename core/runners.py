@@ -13,7 +13,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from config.settings import Config
 from core.phone_bypass import handle_verification
-from core.retry_engine import retry_engine, CreationError
+from core.retry_engine import retry_engine as global_retry_engine, CreationError
 from core.warmup import WarmupEngine
 
 try:
@@ -75,7 +75,7 @@ def run_appium_flow(i, num_accounts, username, first_name, last_name, password,
         return False
     if progress and account_task is not None:
         _update_progress(progress, account_task, completed=10,
-                        description=f"[blue]Starting Appium (Android) flow...[/]")
+                        description="[blue]Starting Appium (Android) flow...[/]")
     manager = AppiumManager()
     if not manager.initialize():
         return False
@@ -468,10 +468,10 @@ async def _handle_post_registration_steps(page, username, progress, account_task
                         if site_key:
                             token = await asyncio.to_thread(CaptchaSolver.solve, site_key, page.url)
                             if token:
-                                await page.evaluate(f"""(token) => {{
+                                await page.evaluate("""(token) => {
                                     const el = document.getElementById('g-recaptcha-response');
-                                    if (el) {{ el.value = token; el.style.display = 'none'; }}
-                                }}""", token)
+                                    if (el) { el.value = token; el.style.display = 'none'; }
+                                }""", token)
                                 await page.wait_for_timeout(1000)
                 except Exception:
                     pass
@@ -516,7 +516,8 @@ async def _handle_post_registration_steps(page, username, progress, account_task
 async def async_playwright_flow(i, num_accounts, username, first_name, last_name,
                                  password, progress, account_task, proxy,
                                  month, day, year, gender,
-                                 use_sms_api=False, flow_mode="standard", headless=None):
+                                 use_sms_api=False, flow_mode="standard", headless=None,
+                                 retry_engine=None):
     _update_progress(progress, account_task, completed=5, description="Starting Playwright Stealth flow...")
     manager = PlaywrightStealthManager()
 
@@ -584,7 +585,7 @@ async def async_playwright_flow(i, num_accounts, username, first_name, last_name
                     if any(sig in page_content for sig in ERROR_PAGE_SIGNALS):
                         logger.warning(f"Error page detected on URL #{url_idx+1}: {url[:60]}...")
                         _update_progress(progress, account_task,
-                                        description=f"[yellow]Error page detected, trying alternate URL...[/]")
+                                        description="[yellow]Error page detected, trying alternate URL...[/]")
                         await page.wait_for_timeout(random.randint(3000, 6000))
                         # Clear cookies and try again with next URL
                         try:
@@ -696,6 +697,12 @@ async def async_playwright_flow(i, num_accounts, username, first_name, last_name
                             break
                     except Exception:
                         continue
+
+                el = await page.wait_for_selector('input[name="firstName"]', timeout=10000)
+                if el:
+                    navigated = True
+            except Exception:
+                pass
 
         if not navigated:
             logger.error("Could not find Google signup form after trying all URLs.")
@@ -1042,7 +1049,7 @@ async def async_playwright_flow(i, num_accounts, username, first_name, last_name
             error_type = CreationError.QR_BLOCKED if "qr" in method else CreationError.PHONE_REQUIRED
             if "send_sms" in method:
                 _update_progress(progress, account_task,
-                                description=f"[bold red]IP flagged — use proxy/VPN[/]")
+                                description="[bold red]IP flagged — use proxy/VPN[/]")
             else:
                 _update_progress(progress, account_task,
                                 description=f"[bold red]Failed: {method}[/]")
@@ -1160,16 +1167,16 @@ async def async_playwright_flow(i, num_accounts, username, first_name, last_name
                                 description="Warming new account & verifying login...")
                 warmed, warm_detail = await warm_account_playwright(f"{username}@gmail.com", password, duration_minutes=2)
                 if warmed:
-                    account_manager.db.update_account_status(
+                    account_manager.db.update_account_health(
                         f"{username}@gmail.com",
                         status="active",
-                        notes="Login verified and warmed successfully"
+                        note="Login verified and warmed successfully"
                     )
                 else:
-                    account_manager.db.update_account_status(
+                    account_manager.db.update_account_health(
                         f"{username}@gmail.com",
                         status="unverified",
-                        notes=f"Created, but warm login verification failed: {warm_detail}"
+                        note=f"Created, but warm login verification failed: {warm_detail}"
                     )
         except Exception as warm_err:
             logger.debug(f"Account warming (non-fatal): {warm_err}")
@@ -1177,7 +1184,6 @@ async def async_playwright_flow(i, num_accounts, username, first_name, last_name
         return True, "success"
 
     except Exception as e:
-        import traceback
         logger.error(f"Playwright flow failed: {e}", exc_info=True)
         return False, CreationError.UNKNOWN
     finally:
@@ -1187,7 +1193,8 @@ async def async_playwright_flow(i, num_accounts, username, first_name, last_name
 def run_playwright_flow(i, num_accounts, username, first_name, last_name, password,
                         progress, account_task, proxy,
                         month=None, day=None, year=None, gender=None,
-                        use_sms_api=False, flow_mode="standard", headless=None):
+                        use_sms_api=False, flow_mode="standard", headless=None,
+                        retry_engine=None):
     if PlaywrightStealthManager is None:
         logger.error("Playwright is not installed. Install with: pip install playwright && playwright install")
         return False
@@ -1201,13 +1208,15 @@ def run_playwright_flow(i, num_accounts, username, first_name, last_name, passwo
         i, num_accounts, username, first_name, last_name, password,
         progress, account_task, proxy, month, day, year, gender,
         use_sms_api, flow_mode, headless=headless,
+        retry_engine=retry_engine,
     ))
 
+    engine_to_use = retry_engine or global_retry_engine
     if isinstance(result, tuple):
         success, error_or_method = result
         if success:
-            retry_engine.record_attempt(flow_mode, True)
+            engine_to_use.record_attempt(flow_mode, True)
         else:
-            retry_engine.record_attempt(flow_mode, False, error_or_method)
+            engine_to_use.record_attempt(flow_mode, False, error_or_method)
         return success
     return result

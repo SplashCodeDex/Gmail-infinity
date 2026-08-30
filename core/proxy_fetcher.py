@@ -4,7 +4,6 @@ Auto Proxy Fetcher - Automatically fetch free proxies from public sources
 import logging
 import requests
 import random
-import time
 
 logger = logging.getLogger('gmail_creator_proxy_fetch')
 

@@ -22,12 +22,14 @@ class CreationError:
 class CircuitBreaker:
     """Detects IP/QR flag storms or mass failure cascades to halt burn-out."""
 
-    def __init__(self, failure_threshold: int = 5, ip_block_threshold: int = 3):
+    def __init__(self, failure_threshold: int = 5, ip_block_threshold: int = 3, probe_window_seconds: float = 600.0):
         self.failure_threshold = failure_threshold
         self.ip_block_threshold = ip_block_threshold
+        self.probe_window_seconds = probe_window_seconds
         self.consecutive_failures = 0
         self.consecutive_ip_blocks = 0
         self._tripped = False
+        self._tripped_at = 0.0
         self._trip_reason = ""
 
     def record(self, success: bool, error_type: str = None):
@@ -35,6 +37,7 @@ class CircuitBreaker:
             self.consecutive_failures = 0
             self.consecutive_ip_blocks = 0
             self._tripped = False
+            self._tripped_at = 0.0
             self._trip_reason = ""
             return
 
@@ -44,17 +47,26 @@ class CircuitBreaker:
         else:
             self.consecutive_ip_blocks = 0
 
+        now = time.time()
         if self.consecutive_ip_blocks >= self.ip_block_threshold:
             self._tripped = True
+            self._tripped_at = now
             self._trip_reason = f"IP/QR flag storm detected ({self.consecutive_ip_blocks} consecutive blocks)"
             logger.error(f"[CIRCUIT_BREAKER] {self._trip_reason}")
         elif self.consecutive_failures >= self.failure_threshold:
             self._tripped = True
+            self._tripped_at = now
             self._trip_reason = f"Consecutive failure threshold exceeded ({self.consecutive_failures} failures)"
             logger.error(f"[CIRCUIT_BREAKER] {self._trip_reason}")
 
     def is_tripped(self) -> bool:
-        return self._tripped
+        if self._tripped:
+            # Half-open probe window: allow next attempt through to probe health
+            if self._tripped_at > 0 and (time.time() - self._tripped_at >= self.probe_window_seconds):
+                logger.info("[CIRCUIT_BREAKER] Half-open probe window reached; allowing probe attempt.")
+                return False
+            return True
+        return False
 
     def get_trip_reason(self) -> str:
         return self._trip_reason
@@ -63,6 +75,7 @@ class CircuitBreaker:
         self.consecutive_failures = 0
         self.consecutive_ip_blocks = 0
         self._tripped = False
+        self._tripped_at = 0.0
         self._trip_reason = ""
 
 

@@ -92,7 +92,7 @@
 
           <!-- Right Column (Active Sessions & Live Logs) -->
           <div class="lg:col-span-8 space-y-5">
-            <SessionsList :sessions="app.sessions" @stop-session="stopSession" />
+            <SessionsList :sessions="app.sessions" @stop-session="stopSession" @resume-session="resumeSession" />
             <LogsPanel />
           </div>
         </div>
@@ -178,6 +178,14 @@ async function stopSession(sessionId) {
     await app.stopSession(sessionId)
   } catch (error) {
     console.error('Stop session failed:', error)
+  }
+}
+
+async function resumeSession(sessionId) {
+  try {
+    await app.resumeSession(sessionId)
+  } catch (error) {
+    console.error('Resume session failed:', error)
   }
 }
 </script>

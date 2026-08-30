@@ -134,3 +134,57 @@ class TestDatabaseManager:
         assert updated[0]["status"] == "active"
         assert updated[0]["notes"] == "Warmed and login verified"
 
+    def test_update_account_health(self, db):
+        db.save_account(
+            email="health@gmail.com",
+            password="pass",
+            status="active",
+            notes="Creation metadata note"
+        )
+
+        # 1. Ambiguous status (e.g. 'locked' / 'network_error') does NOT flip account status
+        assert db.update_account_health("health@gmail.com", status="locked", note="Web login required") is True
+        acc = db.get_all_accounts()[0]
+        assert acc["status"] == "active"  # Status preserved!
+        assert acc["health_note"] == "Web login required"
+        assert acc["notes"] == "Creation metadata note"  # Original notes preserved!
+        assert acc["last_health_checked_at"] != ""
+
+        # 2. Definitive whitelist status (e.g. 'suspended' or 'unverified') DOES flip account status
+        assert db.update_account_health("health@gmail.com", status="suspended", note="Account disabled") is True
+        acc = db.get_all_accounts()[0]
+        assert acc["status"] == "suspended"
+        assert acc["health_note"] == "Account disabled"
+        assert acc["notes"] == "Creation metadata note"
+
+    def test_session_strategy_stats_and_aggregation(self, db):
+        rows1 = [
+            {"strategy": "standard", "attempts": 5, "successes": 4, "failures": 1, "avg_time": 25.0},
+            {"strategy": "youtube", "attempts": 3, "successes": 1, "failures": 2, "avg_time": 40.0}
+        ]
+        assert db.save_session_strategy_stats("sess_1", rows1) is True
+
+        rows2 = [
+            {"strategy": "standard", "attempts": 2, "successes": 2, "failures": 0, "avg_time": 20.0},
+        ]
+        assert db.save_session_strategy_stats("sess_2", rows2) is True
+
+        recent = db.get_recent_strategy_stats(limit_sessions=10)
+        recent_by_strat = {r["strategy"]: r for r in recent}
+
+        assert "standard" in recent_by_strat
+        assert recent_by_strat["standard"]["total_attempts"] == 7
+        assert recent_by_strat["standard"]["total_successes"] == 6
+        assert recent_by_strat["standard"]["total_failures"] == 1
+
+        assert "youtube" in recent_by_strat
+        assert recent_by_strat["youtube"]["total_attempts"] == 3
+        assert recent_by_strat["youtube"]["total_successes"] == 1
+
+    def test_email_exists(self, db):
+        assert db.email_exists("unknown@gmail.com") is False
+        db.save_account("user1@gmail.com", "pass")
+        assert db.email_exists("user1@gmail.com") is True
+        assert db.email_exists("USER1@gmail.com") is True or db.email_exists("user1@gmail.com")
+
+

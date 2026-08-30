@@ -134,3 +134,42 @@ class TestCircuitBreaker:
         assert engine.circuit_breaker.is_tripped() is False
         assert engine.circuit_breaker.consecutive_failures == 0
 
+    def test_scoped_engines_isolation(self):
+        engine_a = RetryEngine()
+        engine_b = RetryEngine()
+
+        for _ in range(3):
+            engine_a.record_attempt("standard", False, error_type=CreationError.IP_FLAGGED)
+
+        assert engine_a.circuit_breaker.is_tripped() is True
+        assert engine_b.circuit_breaker.is_tripped() is False
+        assert engine_b.should_retry(CreationError.TIMEOUT, 0) is True
+
+    def test_half_open_probe_window_recovery(self, engine):
+        for _ in range(3):
+            engine.record_attempt("standard", False, error_type=CreationError.IP_FLAGGED)
+
+        assert engine.circuit_breaker.is_tripped() is True
+
+        # Simulate 10 minutes (601 seconds) passing
+        engine.circuit_breaker._tripped_at -= 601.0
+        assert engine.circuit_breaker.is_tripped() is False
+
+        # If the probe succeeds, breaker resets to fully closed
+        engine.record_attempt("standard", True)
+        assert engine.circuit_breaker.is_tripped() is False
+        assert engine.circuit_breaker.consecutive_ip_blocks == 0
+
+    def test_probe_failure_retrips(self, engine):
+        for _ in range(3):
+            engine.record_attempt("standard", False, error_type=CreationError.IP_FLAGGED)
+
+        # Expire probe window
+        engine.circuit_breaker._tripped_at -= 601.0
+        assert engine.circuit_breaker.is_tripped() is False
+
+        # Probe fails -> immediately re-trips
+        engine.record_attempt("standard", False, error_type=CreationError.IP_FLAGGED)
+        assert engine.circuit_breaker.is_tripped() is True
+
+

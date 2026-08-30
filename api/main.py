@@ -8,7 +8,7 @@ import asyncio
 import logging
 import threading
 from datetime import datetime
-from typing import Dict, List, Optional
+from typing import List, Optional
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -471,8 +471,8 @@ async def health_check_accounts(request: Optional[HealthCheckRequest] = None):
         email = r.get("email")
         status = r.get("status")
         msg = r.get("message", "")
-        if email and status:
-            await asyncio.to_thread(account_manager.db.update_account_status, email, status, msg)
+        if email:
+            await asyncio.to_thread(account_manager.db.update_account_health, email, status, msg)
 
     return {
         "results": results,
@@ -512,10 +512,43 @@ async def export_accounts(request: ExportRequest):
     return FileResponse(path, filename=Path(path).name, media_type=media_type)
 
 
+async def _validate_session_preflight(config: SessionConfig):
+    """Enforce fail-fast validation before launching a session."""
+    if config.use_proxies and Config.ENABLE_PROXY:
+        all_proxies = await asyncio.to_thread(proxy_manager.get_all_proxies)
+        if not all_proxies:
+            raise HTTPException(400, "No proxies in pool — import or fetch proxies first")
+        p_stats = await asyncio.to_thread(proxy_manager.get_stats)
+        if p_stats.get("healthy", 0) == 0:
+            raise HTTPException(400, "All proxies marked unhealthy — run a proxy test first")
+
+    if config.use_sms:
+        has_5sim = bool(Config.FIVESIM_API_KEY)
+        has_sms_activate = bool(Config.SMS_ACTIVATE_API_KEY)
+        if has_5sim or has_sms_activate:
+            try:
+                from services.sms_manager import check_balance
+                balances = await check_balance()
+                capable_balances = []
+                if has_5sim and '5sim' in balances and isinstance(balances['5sim'], (int, float)):
+                    capable_balances.append(balances['5sim'])
+                if has_sms_activate and 'sms-activate' in balances and isinstance(balances['sms-activate'], (int, float)):
+                    capable_balances.append(balances['sms-activate'])
+
+                if capable_balances and all(b <= 0 for b in capable_balances):
+                    raise HTTPException(400, "Configured SMS services report zero balance")
+            except HTTPException:
+                raise
+            except Exception as e:
+                logging.warning(f"SMS pre-flight check exception: {e}")
+
+
 @app.post("/api/session/start")
 async def start_session(config: SessionConfig):
     import time
     import os
+
+    await _validate_session_preflight(config)
 
     session_id = f"session_{int(time.time())}_{os.urandom(4).hex()}"
     session = CreationSession(session_id, config)
@@ -535,6 +568,58 @@ async def start_session(config: SessionConfig):
     return {
         "session_id": session_id,
         "message": "Session started"
+    }
+
+
+@app.post("/api/session/{session_id}/resume")
+async def resume_session(session_id: str):
+    import time
+    import os
+
+    db_session = await asyncio.to_thread(account_manager.db.get_session, session_id)
+    if not db_session:
+        raise HTTPException(404, "Session not found")
+
+    status = db_session.get("status", "")
+    if status not in {"interrupted", "stopped", "failed", "completed"}:
+        raise HTTPException(400, f"Cannot resume session with active status '{status}'")
+
+    total_target = db_session.get("num_accounts", 0)
+    successes = db_session.get("successes", 0)
+    failures = db_session.get("failures", 0)
+    remaining = total_target - (successes + failures)
+
+    if remaining <= 0:
+        raise HTTPException(400, "Session has no remaining accounts to create")
+
+    raw_cfg = db_session.get("config", {})
+    raw_cfg["num_accounts"] = remaining
+    try:
+        resumed_config = SessionConfig(**raw_cfg)
+    except Exception as e:
+        raise HTTPException(400, f"Invalid stored session configuration: {e}")
+
+    await _validate_session_preflight(resumed_config)
+
+    new_session_id = f"session_{int(time.time())}_{os.urandom(4).hex()}"
+    session = CreationSession(new_session_id, resumed_config)
+    active_sessions[new_session_id] = session
+
+    await asyncio.to_thread(
+        account_manager.db.save_session,
+        new_session_id,
+        "initializing",
+        resumed_config.num_accounts,
+        resumed_config.model_dump()
+    )
+    await session.add_log("info", f"Resumed from {session_id} ({remaining} remaining accounts)")
+    session.task = asyncio.create_task(run_creation_session(new_session_id))
+
+    return {
+        "session_id": new_session_id,
+        "resumed_from": session_id,
+        "remaining": remaining,
+        "message": f"Resumed {remaining} remaining accounts"
     }
 
 

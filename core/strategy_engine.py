@@ -5,8 +5,7 @@ import time
 import random
 import logging
 from datetime import datetime
-from typing import Dict, List, Optional
-import json
+from typing import Dict, List
 from collections import defaultdict, deque
 
 logger = logging.getLogger('gmail_creator_strategy')
@@ -25,31 +24,18 @@ class AdaptiveStrategyEngine:
             self.load_historical_learning()
 
     def load_historical_learning(self):
-        """Seed ML model from historical database sessions across runs."""
+        """Seed ML model from real historical strategy metrics across runs."""
         try:
-            sessions = self.db.get_session_history(limit=100)
-            for sess in sessions:
-                raw_strats = sess.get("strategies_used", "{}")
-                if isinstance(raw_strats, str):
-                    try:
-                        strats = json.loads(raw_strats)
-                    except Exception:
-                        strats = {}
-                else:
-                    strats = raw_strats or {}
-
-                total_sess = sess.get("total_attempts", 0)
-                success_sess = sess.get("successes", 0)
-                sess_rate = (success_sess / total_sess) if total_sess > 0 else 0.0
-
-                for strat, count in strats.items():
-                    if isinstance(count, int) and count > 0:
-                        self.strategy_stats[strat]['attempts'] += count
-                        succ = int(count * sess_rate)
-                        self.strategy_stats[strat]['successes'] += succ
-                        self.strategy_stats[strat]['failures'] += (count - succ)
-
-            logger.debug(f"Loaded historical learning across {len(sessions)} past sessions.")
+            if hasattr(self.db, 'get_recent_strategy_stats'):
+                recent_stats = self.db.get_recent_strategy_stats(limit_sessions=20)
+                for r in recent_stats:
+                    strat = r.get("strategy")
+                    if strat:
+                        self.strategy_stats[strat]['attempts'] += int(r.get("total_attempts", 0))
+                        self.strategy_stats[strat]['successes'] += int(r.get("total_successes", 0))
+                        self.strategy_stats[strat]['failures'] += int(r.get("total_failures", 0))
+                        self.strategy_stats[strat]['avg_time'] = float(r.get("avg_time", 0.0))
+                logger.debug(f"Loaded real strategy metrics across recent sessions: {list(self.strategy_stats.keys())}")
         except Exception as e:
             logger.debug(f"Could not load historical strategy learning: {e}")
 

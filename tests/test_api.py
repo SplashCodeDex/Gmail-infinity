@@ -3,7 +3,7 @@ Tests for api.main — FastAPI endpoints, auth middleware, session lifecycle, ex
 """
 import pytest
 from fastapi.testclient import TestClient
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 from api.main import app, active_sessions
 from core.account_manager import account_manager
@@ -97,6 +97,53 @@ class TestApiSessionLifecycle:
             assert sessions_resp.status_code == 200
             all_s = sessions_resp.json()["sessions"]
             assert any(s["id"] == sid for s in all_s)
+
+    def test_preflight_proxy_validation(self, client, monkeypatch):
+        from core.proxy_manager import proxy_manager
+        monkeypatch.setattr("config.settings.Config.ENABLE_PROXY", True)
+
+        # Empty pool
+        monkeypatch.setattr(proxy_manager, "get_all_proxies", lambda: [])
+        resp = client.post("/api/session/start", json={"num_accounts": 2, "use_proxies": True})
+        assert resp.status_code == 400
+        assert "No proxies in pool" in resp.json()["detail"]
+
+        # Proxies exist but 0 healthy
+        monkeypatch.setattr(proxy_manager, "get_all_proxies", lambda: [{"ip": "1.1.1.1", "port": 8080}])
+        monkeypatch.setattr(proxy_manager, "get_stats", lambda: {"total": 1, "healthy": 0})
+        resp = client.post("/api/session/start", json={"num_accounts": 2, "use_proxies": True})
+        assert resp.status_code == 400
+        assert "All proxies marked unhealthy" in resp.json()["detail"]
+
+    def test_resume_session_flow(self, client):
+        with patch("api.main.run_creation_session"):
+            # 1. Start session with 5 accounts
+            start_resp = client.post("/api/session/start", json={"num_accounts": 5, "concurrent": 1})
+            assert start_resp.status_code == 200
+            sid = start_resp.json()["session_id"]
+
+            # Simulate session completing partially: 2 successes, 1 failure -> 2 remaining
+            account_manager.db.update_session(sid, status="stopped", successes=2, failures=1)
+
+            # 2. Resume session
+            resume_resp = client.post(f"/api/session/{sid}/resume")
+            assert resume_resp.status_code == 200
+            r_data = resume_resp.json()
+            assert r_data["resumed_from"] == sid
+            assert r_data["remaining"] == 2
+            new_sid = r_data["session_id"]
+            assert new_sid != sid
+
+            # Verify new session in DB
+            new_sess = account_manager.db.get_session(new_sid)
+            assert new_sess["num_accounts"] == 2
+
+            # 3. Resume when remaining <= 0 -> 400
+            account_manager.db.update_session(new_sid, status="completed", successes=2, failures=0)
+            fail_resp = client.post(f"/api/session/{new_sid}/resume")
+            assert fail_resp.status_code == 400
+            assert "no remaining accounts" in fail_resp.json()["detail"].lower()
+
 
 
 class TestApiAuthMiddleware:

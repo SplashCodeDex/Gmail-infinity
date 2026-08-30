@@ -116,6 +116,20 @@ export const useAppStore = defineStore('app', () => {
     }
   }
 
+  async function resumeSession(sessionId) {
+    try {
+      const { data } = await api.post(`/session/${sessionId}/resume`)
+      await fetchSessions()
+      await fetchStats()
+      toast.success(`Resumed session: ${data.session_id} (${data.remaining} remaining)`, 'Session Resumed')
+      return data
+    } catch (error) {
+      const msg = error.response?.data?.detail || error.message
+      toast.error(msg, 'Failed to Resume Session')
+      throw error
+    }
+  }
+
   async function exportAccounts(format = 'json') {
     let url = null
     try {
@@ -303,6 +317,7 @@ export const useAppStore = defineStore('app', () => {
     refreshAll,
     startSession,
     stopSession,
+    resumeSession,
     exportAccounts,
     checkAccountsHealth,
     testProxies,

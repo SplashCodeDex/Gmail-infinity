@@ -155,4 +155,29 @@ describe('app store', () => {
       vi.unstubAllGlobals()
     })
   })
+
+  describe('resumeSession', () => {
+    it('calls the resume endpoint, refreshes sessions, and toasts success', async () => {
+      mockApi.post.mockResolvedValue({
+        data: { session_id: 's_resumed', resumed_from: 's_old', remaining: 3 }
+      })
+      mockApi.get.mockResolvedValue({ data: { sessions: [] } })
+      const store = useAppStore()
+      const result = await store.resumeSession('s_old')
+      expect(mockApi.post).toHaveBeenCalledWith('/session/s_old/resume')
+      expect(result.session_id).toBe('s_resumed')
+      expect(result.remaining).toBe(3)
+      expect(useToastStore().toasts.some(t => t.type === 'success')).toBe(true)
+    })
+
+    it('toasts error and rethrows on failure', async () => {
+      mockApi.post.mockRejectedValue({
+        response: { data: { detail: 'Session has no remaining accounts' } },
+        message: 'Request failed',
+      })
+      const store = useAppStore()
+      await expect(store.resumeSession('s_empty')).rejects.toThrow()
+      expect(useToastStore().toasts.some(t => t.type === 'error')).toBe(true)
+    })
+  })
 })

@@ -3,7 +3,7 @@ import time
 import random
 import logging
 from collections import defaultdict, deque
-from typing import Dict, List, Optional
+from typing import Dict, Optional
 import requests
 from config.settings import Config
 
