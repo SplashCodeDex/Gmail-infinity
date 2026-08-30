@@ -45,6 +45,48 @@ class ProxyManager:
     def get_all_proxies(self):
         return list(self._proxies)
 
+    def add_proxies(self, proxies_list, replace=False):
+        """Add new proxies to the manager with validation."""
+        if replace:
+            self._proxies = []
+            self._health = {}
+            self._scores = {}
+
+        added_count = 0
+        for p in proxies_list:
+            if not p:
+                continue
+            p = p.strip()
+            if not p or p.startswith('#'):
+                continue
+            if self.parse(p) and p not in self._proxies:
+                self._proxies.append(p)
+                self._health[p] = True
+                self._scores[p] = 50
+                added_count += 1
+
+        self.save_to_disk()
+        return added_count
+
+    def clear_proxies(self):
+        """Clear all proxies from memory and disk."""
+        self._proxies = []
+        self._health = {}
+        self._scores = {}
+        self.save_to_disk()
+
+    def save_to_disk(self):
+        """Save current proxy list to Config.PROXY_FILE."""
+        try:
+            proxy_file = Config.PROXY_FILE
+            os.makedirs(os.path.dirname(proxy_file), exist_ok=True)
+            with open(proxy_file, "w", encoding="utf-8") as f:
+                for p in self._proxies:
+                    f.write(f"{p}\n")
+            logger.info(f"Saved {len(self._proxies)} proxies to {proxy_file}")
+        except Exception as e:
+            logger.error(f"Failed to save proxies to disk: {e}")
+
     def get_random(self):
         healthy = [p for p in self._proxies if self._health.get(p, True)]
         if not healthy:
@@ -190,21 +232,65 @@ class ProxyManager:
 
     @staticmethod
     def parse(proxy_string):
+        """Parse a proxy string into its components.
+
+        Supported formats:
+            host:port
+            host:port:user:pass            (legacy)
+            user:pass@host:port
+            protocol://host:port
+            protocol://user:pass@host:port
+
+        Returns {"host", "port", "user", "pass", "protocol"} or None.
+        """
         if not proxy_string:
             return None
-        parts = proxy_string.split(":")
+
+        s = proxy_string.strip()
+
+        # Split off an optional scheme (http, https, socks5, ...)
+        protocol = "http"
+        if "://" in s:
+            scheme, s = s.split("://", 1)
+            scheme = scheme.lower()
+            if scheme in ("http", "https", "socks4", "socks5", "socks5h"):
+                protocol = scheme
+            else:
+                return None
+
+        # Split off optional user:pass@ credentials
+        user = pwd = None
+        if "@" in s:
+            creds, s = s.rsplit("@", 1)
+            if ":" in creds:
+                user, pwd = creds.split(":", 1)
+            else:
+                user, pwd = creds, None
+
+        # Remaining part must be host:port (or legacy host:port:user:pass)
+        parts = s.split(":")
         if len(parts) == 2:
-            return {"host": parts[0], "port": parts[1], "user": None, "pass": None}
-        elif len(parts) == 4:
-            return {"host": parts[0], "port": parts[1], "user": parts[2], "pass": parts[3]}
-        return None
+            host, port = parts
+        elif len(parts) == 4 and user is None:
+            host, port, user, pwd = parts
+        else:
+            return None
+
+        try:
+            port = int(port)
+        except (TypeError, ValueError):
+            return None
+        if not (0 < port < 65536) or not host:
+            return None
+
+        return {"host": host, "port": port, "user": user, "pass": pwd, "protocol": protocol}
 
     @staticmethod
     def format_for_playwright(proxy_string):
         parsed = ProxyManager.parse(proxy_string)
         if not parsed:
             return None
-        result = {"server": f"http://{parsed['host']}:{parsed['port']}"}
+        result = {"server": f"{parsed['protocol']}://{parsed['host']}:{parsed['port']}"}
         if parsed["user"]:
             result["username"] = parsed["user"]
             result["password"] = parsed["pass"]
