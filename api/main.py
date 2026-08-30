@@ -348,7 +348,7 @@ async def health_check():
 async def get_config():
     return {
         "engine": Config.ENGINE_MODE,
-        "headless": Config.HEADLESS,
+        "headless": Config.HEADLESS_MODE,
         "use_proxies": Config.ENABLE_PROXY,
         "proxy_type": Config.PROXY_TYPE,
         "warmup_enabled": True,
@@ -374,14 +374,14 @@ async def get_stats():
             "total": account_stats['total'],
             "successes": account_stats['active'],
             "failures": account_stats['total'] - account_stats['active'],
-            "success_rate": account_stats['health_rate'],
+            "success_rate": account_stats.get('success_rate', 0.0),
             "strategies": account_stats['strategies'],
         },
         "proxies": {
-            "total": proxy_stats['total'],
-            "healthy": proxy_stats['healthy'],
-            "unhealthy": proxy_stats['unhealthy'],
-            "avg_response_time": proxy_stats['avg_latency_ms'],
+            "total": proxy_stats.get('total', 0),
+            "healthy": proxy_stats.get('healthy', 0),
+            "unhealthy": proxy_stats.get('unhealthy', 0),
+            "avg_response_time": proxy_stats.get('avg_latency_ms', 0),
         },
         "active_sessions": len([s for s in active_sessions.values() if s.status == 'running']),
         "total_sessions": len(active_sessions)
