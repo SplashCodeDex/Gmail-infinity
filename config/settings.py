@@ -90,7 +90,6 @@ class Config:
     #                  ADVANCED STEALTH MODULES
     # ═══════════════════════════════════════════════════════════════
     ENABLE_CDP_INJECTION = os.getenv("ENABLE_CDP_INJECTION", "True").lower() == "true"
-    ENABLE_COOKIE_REAPER = os.getenv("ENABLE_COOKIE_REAPER", "True").lower() == "true"
     ENABLE_GHOST_TYPER = os.getenv("ENABLE_GHOST_TYPER", "True").lower() == "true"
     ENABLE_POLTERGEIST = os.getenv("ENABLE_POLTERGEIST", "True").lower() == "true"
 

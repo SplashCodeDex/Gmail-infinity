@@ -646,7 +646,6 @@ async def get_engine_capabilities():
         ],
         "stealth_modules": {
             "poltergeist": Config.ENABLE_POLTERGEIST,
-            "cookie_reaper": Config.ENABLE_COOKIE_REAPER,
             "ghost_typer": Config.ENABLE_GHOST_TYPER,
             "cdp_injection": Config.ENABLE_CDP_INJECTION,
             "recovery_chain": Config.ENABLE_RECOVERY_CHAIN,

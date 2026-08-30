@@ -331,16 +331,6 @@ class PlaywrightStealthManager:
                 await self.page.add_init_script(ghost_js)
                 logger.info("Ghost Typer script injected from js/ghost_typer.js")
 
-        # ── Inject Cookie Reaper trust cookies ─────────────────────────────
-        if Config.ENABLE_COOKIE_REAPER:
-            try:
-                from core.cookie_reaper import inject_cookies_playwright
-                injected = await inject_cookies_playwright(self.page)
-                if injected:
-                    logger.info("Cookie Reaper: Trust cookies injected into context")
-            except Exception as cr_e:
-                logger.warning(f"Cookie Reaper injection failed (non-fatal): {cr_e}")
-
         logger.info(f"FP: Chrome/{chrome_ver} | {sp['width']}x{sp['height']} | {geo['tz']} | {hw}c/{mem}GB")
         return True
 

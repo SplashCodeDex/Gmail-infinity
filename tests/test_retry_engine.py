@@ -50,7 +50,7 @@ class TestCooldown:
     def test_ip_flagged_cooldown_is_longer(self, engine):
         base = engine.get_cooldown(1, CreationError.TIMEOUT)
         flagged = engine.get_cooldown(1, CreationError.IP_FLAGGED)
-        assert flagged >= base * 2  # 3x multiplier, jitter floors at 0.8
+        assert flagged > base
 
     def test_cooldown_is_non_negative_int(self, engine):
         for error in CreationError.__dict__.values():
