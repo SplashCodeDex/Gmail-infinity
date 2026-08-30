@@ -1,0 +1,25 @@
+{
+  "name": "gmail-infinity",
+  "version": "2.0.0",
+  "description": "Gmail Infinity Factory - Autonomous Creator & Modern Web Suite",
+  "type": "module",
+  "scripts": {
+    "dev": "node scripts/dev.js",
+    "dev:api": "python api/main.py",
+    "dev:web": "npm run dev --prefix web",
+    "build": "npm run build --prefix web",
+    "preview": "npm run preview --prefix web",
+    "cli": "python streamlined_creator.py",
+    "tui": "python auto_gmail_creator.py"
+  },
+  "keywords": [
+    "gmail",
+    "automation",
+    "fastapi",
+    "vite",
+    "vue3",
+    "playwright"
+  ],
+  "author": "CodeDeX",
+  "license": "MIT"
+}
