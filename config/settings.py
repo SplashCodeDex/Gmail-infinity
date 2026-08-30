@@ -22,7 +22,6 @@ class Config:
     YOUR_GENDER = os.getenv("YOUR_GENDER", "1")           # 1=Male, 2=Female, 3=Other
     YOUR_PASSWORD = os.getenv("YOUR_PASSWORD", "")
     RECOVERY_EMAIL = os.getenv("RECOVERY_EMAIL", "")
-    RECOVERY_PHONE = os.getenv("RECOVERY_PHONE", "")
 
     # ═══════════════════════════════════════════════════════════════
     #                  SMS SERVICES
@@ -52,28 +51,11 @@ class Config:
     CAPMONSTER_API_KEY = os.getenv("CAPMONSTER_API_KEY", "")
 
     # ═══════════════════════════════════════════════════════════════
-    #                  ANTI-QR CONFIGURATION
-    # ═══════════════════════════════════════════════════════════════
-    ENABLE_REALISTIC_WARMUP = os.getenv("ENABLE_REALISTIC_WARMUP", "True").lower() == "true"
-    WARMUP_MIN_DURATION = int(os.getenv("WARMUP_MIN_DURATION", "300"))
-    FORCE_RECOVERY_EMAIL = os.getenv("FORCE_RECOVERY_EMAIL", "True").lower() == "true"
-    QR_MAX_RETRIES = int(os.getenv("QR_MAX_RETRIES", "3"))
-
-    # ═══════════════════════════════════════════════════════════════
-    #                  IDENTITY ROTATION
-    # ═══════════════════════════════════════════════════════════════
-    ROTATE_USER_AGENT = os.getenv("ROTATE_USER_AGENT", "True").lower() == "true"
-    ROTATE_SCREEN_SIZE = os.getenv("ROTATE_SCREEN_SIZE", "True").lower() == "true"
-    ROTATE_TIMEZONE = os.getenv("ROTATE_TIMEZONE", "True").lower() == "true"
-
-    # ═══════════════════════════════════════════════════════════════
     #                  PROXY CONFIGURATION
     # ═══════════════════════════════════════════════════════════════
     ENABLE_PROXY = os.getenv("ENABLE_PROXY", "False").lower() == "true"
     PROXY_FILE = str(PROJECT_ROOT / os.getenv("PROXY_FILE", "config/proxies.txt"))
     PROXY_TYPE = os.getenv("PROXY_TYPE", "residential")  # residential / mobile / datacenter
-    ROTATE_PROXY_EVERY = int(os.getenv("ROTATE_PROXY_EVERY", "1"))
-    PROXY_COUNTRY_ROTATION = os.getenv("PROXY_COUNTRY_ROTATION", "US,GB,CA,AU").split(",")
 
     # Mobile Proxy
     MOBILE_PROXY_IP_CHANGE_URL = os.getenv("MOBILE_PROXY_IP_CHANGE_URL", "")
@@ -93,41 +75,30 @@ class Config:
     ENABLE_FINGERPRINT_MASKING = os.getenv("ENABLE_FINGERPRINT_MASKING", "True").lower() == "true"
     ENABLE_HUMAN_TYPING_ERRORS = os.getenv("ENABLE_HUMAN_TYPING_ERRORS", "True").lower() == "true"
     DELAY_BETWEEN_ACCOUNTS = int(os.getenv("DELAY_BETWEEN_ACCOUNTS", "30"))
-    WARMING_INTENSITY = os.getenv("WARMING_INTENSITY", "high")   # low, medium, high
 
     # ═══════════════════════════════════════════════════════════════
     #                  MAC ADDRESS ROTATION
     # ═══════════════════════════════════════════════════════════════
     ENABLE_MAC_ROTATION = os.getenv("ENABLE_MAC_ROTATION", "True").lower() == "true"
-    CHANGE_MAC_EVERY = int(os.getenv("CHANGE_MAC_EVERY", "2"))
 
     # ═══════════════════════════════════════════════════════════════
     #                  RECOVERY CHAIN
     # ═══════════════════════════════════════════════════════════════
     ENABLE_RECOVERY_CHAIN = os.getenv("ENABLE_RECOVERY_CHAIN", "True").lower() == "true"
-    CHAIN_FILE = str(PROJECT_ROOT / os.getenv("CHAIN_FILE", "data/chain.json"))
 
     # ═══════════════════════════════════════════════════════════════
     #                  ADVANCED STEALTH MODULES
     # ═══════════════════════════════════════════════════════════════
-    ENABLE_WORM_AI = os.getenv("ENABLE_WORM_AI", "True").lower() == "true"
     ENABLE_CDP_INJECTION = os.getenv("ENABLE_CDP_INJECTION", "True").lower() == "true"
     ENABLE_COOKIE_REAPER = os.getenv("ENABLE_COOKIE_REAPER", "True").lower() == "true"
     ENABLE_GHOST_TYPER = os.getenv("ENABLE_GHOST_TYPER", "True").lower() == "true"
     ENABLE_POLTERGEIST = os.getenv("ENABLE_POLTERGEIST", "True").lower() == "true"
 
     # ═══════════════════════════════════════════════════════════════
-    #                  METHODS
-    # ═══════════════════════════════════════════════════════════════
-    ENABLE_YOUTUBE_MODE = os.getenv("ENABLE_YOUTUBE_MODE", "True").lower() == "true"
-    ENABLE_EDU_SPOOF = os.getenv("ENABLE_EDU_SPOOF", "False").lower() == "true"
-
-    # ═══════════════════════════════════════════════════════════════
     #                  NAMES & PATHS
     # ═══════════════════════════════════════════════════════════════
     USE_ARABIC_NAMES = os.getenv("USE_ARABIC_NAMES", "True").lower() == "true"
     NAMES_FILE = str(PROJECT_ROOT / os.getenv("NAMES_FILE", "data/names.txt"))
-    USER_AGENTS_FILE = str(PROJECT_ROOT / os.getenv("USER_AGENTS_FILE", "config/user_agents.txt"))
 
     # ═══════════════════════════════════════════════════════════════
     #                  LOGGING & EXPORT
@@ -135,7 +106,6 @@ class Config:
     ENABLE_LOGGING = os.getenv("ENABLE_LOGGING", "True").lower() == "true"
     LOG_FILE = str(PROJECT_ROOT / os.getenv("LOG_FILE", "data/gmail_creator.log"))
     LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
-    ACCOUNTS_FILE = str(PROJECT_ROOT / os.getenv("ACCOUNTS_FILE", "data/accounts.txt"))
     EXPORT_FORMAT = os.getenv("EXPORT_FORMAT", "txt")
 
     # ═══════════════════════════════════════════════════════════════
