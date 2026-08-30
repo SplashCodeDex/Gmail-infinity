@@ -217,7 +217,7 @@ export const useAppStore = defineStore('app', () => {
 
   async function fetchPublicProxies() {
     try {
-      const { data } = await api.post('/api/proxies/fetch')
+      const { data } = await api.post('/proxies/fetch')
       await fetchStats()
       toast.success(`Fetched ${data.fetched} public proxies (${data.added} new added)`, 'Public Proxy Pool')
       return data

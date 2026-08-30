@@ -35,9 +35,11 @@ class PlaywrightStealthManager:
         self.page = None
         self.is_mobile = False
 
-    async def initialize(self, proxy=None, is_premium=False):
+    async def initialize(self, proxy=None, is_premium=False, headless=None):
         logger.info("Initializing Playwright Stealth Browser...")
         self.playwright = await async_playwright().start()
+        if headless is None:
+            headless = Config.HEADLESS_MODE
         
         launch_args = [
             '--disable-blink-features=AutomationControlled',
@@ -81,7 +83,7 @@ class PlaywrightStealthManager:
         # Launch real chrome/chromium — try installed Chrome first, fall back to bundled Chromium
         try:
             self.browser = await self.playwright.chromium.launch(
-                headless=Config.HEADLESS_MODE,
+                headless=headless,
                 args=launch_args,
                 proxy=proxy_settings,
                 channel="chrome"
@@ -89,7 +91,7 @@ class PlaywrightStealthManager:
         except Exception:
             logger.info("Installed Chrome not found, falling back to bundled Chromium...")
             self.browser = await self.playwright.chromium.launch(
-                headless=Config.HEADLESS_MODE,
+                headless=headless,
                 args=launch_args,
                 proxy=proxy_settings,
             )

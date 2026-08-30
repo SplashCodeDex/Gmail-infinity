@@ -510,13 +510,13 @@ async def _handle_post_registration_steps(page, username, progress, account_task
 async def async_playwright_flow(i, num_accounts, username, first_name, last_name,
                                  password, progress, account_task, proxy,
                                  month, day, year, gender,
-                                 use_sms_api=False, flow_mode="standard"):
+                                 use_sms_api=False, flow_mode="standard", headless=None):
     _update_progress(progress, account_task, completed=5, description="Starting Playwright Stealth flow...")
     manager = PlaywrightStealthManager()
 
     try:
         # ── Initialize browser ────────────────────────────────────────────
-        if not await manager.initialize(proxy=proxy, is_premium=use_sms_api):
+        if not await manager.initialize(proxy=proxy, is_premium=use_sms_api, headless=headless):
             logger.error("PlaywrightStealthManager.initialize() returned False")
             return False, CreationError.BROWSER_CRASH
 
@@ -1164,7 +1164,7 @@ async def async_playwright_flow(i, num_accounts, username, first_name, last_name
 def run_playwright_flow(i, num_accounts, username, first_name, last_name, password,
                         progress, account_task, proxy,
                         month=None, day=None, year=None, gender=None,
-                        use_sms_api=False, flow_mode="standard"):
+                        use_sms_api=False, flow_mode="standard", headless=None):
     if PlaywrightStealthManager is None:
         logger.error("Playwright is not installed. Install with: pip install playwright && playwright install")
         return False
@@ -1177,7 +1177,7 @@ def run_playwright_flow(i, num_accounts, username, first_name, last_name, passwo
     result = asyncio.run(async_playwright_flow(
         i, num_accounts, username, first_name, last_name, password,
         progress, account_task, proxy, month, day, year, gender,
-        use_sms_api, flow_mode,
+        use_sms_api, flow_mode, headless=headless,
     ))
 
     if isinstance(result, tuple):

@@ -62,22 +62,47 @@ class AccountHealthChecker:
         return result
 
     @staticmethod
-    def check_all(accounts, delay_between=2):
+    def check_all(accounts, max_workers=8):
         """
-        Check multiple accounts. Returns list of result dicts.
-        Adds delay between checks to avoid rate limiting.
+        Check multiple accounts concurrently using ThreadPoolExecutor.
+        Preserves input account ordering and isolates errors per account.
         """
-        results = []
-        for acc in accounts:
-            email = acc.get("email", "")
-            password = acc.get("password", "")
-            if not email or not password:
-                continue
-            result = AccountHealthChecker.check_single(email, password)
-            results.append(result)
-            logger.info(f"Health check: {email} -> {result['status']}")
-            time.sleep(delay_between)
-        return results
+        import concurrent.futures
+        if not accounts:
+            return []
+
+        indexed_accounts = [
+            (i, acc.get("email", ""), acc.get("password", ""))
+            for i, acc in enumerate(accounts)
+            if acc.get("email") and acc.get("password")
+        ]
+
+        if not indexed_accounts:
+            return []
+
+        results_by_index = {}
+        worker_count = min(len(indexed_accounts), max(1, max_workers))
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=worker_count) as executor:
+            future_to_idx = {
+                executor.submit(AccountHealthChecker.check_single, email, password): idx
+                for idx, email, password in indexed_accounts
+            }
+            for future in concurrent.futures.as_completed(future_to_idx):
+                idx = future_to_idx[future]
+                try:
+                    res = future.result()
+                    results_by_index[idx] = res
+                    logger.info(f"Health check: {res.get('email')} -> {res.get('status')}")
+                except Exception as e:
+                    results_by_index[idx] = {
+                        "email": accounts[idx].get("email", ""),
+                        "status": "error",
+                        "message": str(e),
+                        "checked_at": datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                    }
+
+        return [results_by_index[i] for i in sorted(results_by_index.keys())]
 
     @staticmethod
     def get_summary(results):

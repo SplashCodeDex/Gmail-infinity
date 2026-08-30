@@ -99,10 +99,6 @@ function getProgressPercent(session) {
   return Math.min(100, Math.max(0, Number(pct.toFixed(1))))
 }
 
-function getStatusIndicator(status) {
-  return SESSION_STATUS_STYLES[status]?.indicator || 'bg-zinc-500'
-}
-
 function getStatusBadgeClass(status) {
   return SESSION_STATUS_STYLES[status]?.badge || 'bg-zinc-800 text-zinc-400 border-zinc-700'
 }

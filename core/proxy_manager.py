@@ -1,10 +1,9 @@
-"""
-Proxy Manager - Advanced proxy rotation and health checking
-"""
 import os
 import time
 import random
 import logging
+from collections import defaultdict, deque
+from typing import Dict, List, Optional
 import requests
 from config.settings import Config
 
@@ -17,6 +16,7 @@ class ProxyManager:
         self._current_index = 0
         self._health = {}
         self._scores = {}
+        self.proxy_history = defaultdict(lambda: {'successes': 0, 'failures': 0, 'last_used': 0.0, 'latency_ms': deque(maxlen=10)})
         self._load_proxies()
 
     def _load_proxies(self):
@@ -117,6 +117,8 @@ class ProxyManager:
         if proxy in self._scores:
             self._scores[proxy] = min(100, self._scores[proxy] + 10)
             self._health[proxy] = True
+        self.proxy_history[proxy]['successes'] += 1
+        self.proxy_history[proxy]['last_used'] = time.time()
 
     def mark_failure(self, proxy, fatal=False):
         if proxy in self._scores:
@@ -124,6 +126,85 @@ class ProxyManager:
             if self._scores[proxy] <= 10:
                 self._health[proxy] = False
                 logger.warning(f"Proxy marked unhealthy: {proxy}")
+        self.proxy_history[proxy]['failures'] += 1
+        self.proxy_history[proxy]['last_used'] = time.time()
+
+    def record_result(self, proxy: str, success: bool, latency_ms: Optional[float] = None):
+        """Single bookkeeping entry point for creation outcomes."""
+        if not proxy:
+            return
+
+        history = self.proxy_history[proxy]
+        if success:
+            history['successes'] += 1
+            if proxy in self._scores:
+                self._scores[proxy] = min(100, self._scores[proxy] + 10)
+                self._health[proxy] = True
+        else:
+            history['failures'] += 1
+            if proxy in self._scores:
+                self._scores[proxy] = max(0, self._scores[proxy] - 10)
+                if self._scores[proxy] <= 10:
+                    self._health[proxy] = False
+
+        history['last_used'] = time.time()
+        if latency_ms is not None and latency_ms > 0:
+            history['latency_ms'].append(latency_ms)
+
+    def calculate_proxy_score(self, proxy: str) -> float:
+        """Calculate proxy reliability score using composite metric (success 60%, speed 20%, freshness 20%)."""
+        if not proxy:
+            return 0.5
+
+        history = self.proxy_history[proxy]
+        total = history['successes'] + history['failures']
+
+        if total == 0:
+            return 0.5  # Neutral for untested proxies
+
+        # Success rate component (60%)
+        success_rate = history['successes'] / total
+
+        # Speed component (20%) - normalized in milliseconds (neutral 0.5 if unknown)
+        if history['latency_ms']:
+            avg_ms = sum(history['latency_ms']) / len(history['latency_ms'])
+            speed_score = max(0.0, 1.0 - (avg_ms / 3000.0))
+        else:
+            speed_score = 0.5
+
+        # Freshness component (20%) - penalize old proxies
+        time_since_use = time.time() - history['last_used'] if history['last_used'] > 0 else 0
+        freshness_score = max(0.0, 1.0 - (time_since_use / 3600.0))
+
+        return (success_rate * 0.6) + (speed_score * 0.2) + (freshness_score * 0.2)
+
+    def select_smart(self) -> Optional[str]:
+        """Select best proxy using epsilon-greedy ML scoring (85% exploitation, 15% exploration)."""
+        if not self._proxies:
+            return None
+
+        # Calculate scores
+        scored = [(p, self.calculate_proxy_score(p)) for p in self._proxies]
+        scored.sort(key=lambda x: x[1], reverse=True)
+
+        if random.random() < 0.85 and scored:
+            return scored[0][0]
+        return random.choice(self._proxies)
+
+    def get_intelligence_stats(self) -> Dict:
+        """Get comprehensive proxy statistics for export / insights."""
+        stats = {}
+        for proxy, history in self.proxy_history.items():
+            total = history['successes'] + history['failures']
+            avg_lat = sum(history['latency_ms']) / len(history['latency_ms']) if history['latency_ms'] else 0.0
+            stats[proxy] = {
+                'score': self.calculate_proxy_score(proxy),
+                'success_rate': (history['successes'] / total * 100) if total > 0 else 0.0,
+                'total_uses': total,
+                'avg_response_time': avg_lat / 1000.0 if avg_lat else 0.0,
+                'avg_latency_ms': avg_lat,
+            }
+        return stats
 
     def check_health(self, proxy, timeout=10):
         parsed = self.parse(proxy)
@@ -136,9 +217,12 @@ class ProxyManager:
             else:
                 proxy_url = f"http://{parsed['host']}:{parsed['port']}"
             proxies_dict = {"http": proxy_url, "https": proxy_url}
+            start_t = time.time()
             resp = requests.get("https://httpbin.org/ip", proxies=proxies_dict, timeout=timeout)
             if resp.status_code == 200:
+                elapsed_ms = (time.time() - start_t) * 1000
                 self._health[proxy] = True
+                self.proxy_history[proxy]['latency_ms'].append(elapsed_ms)
                 return True
         except Exception as e:
             logger.debug(f"Proxy health check failed for {proxy}: {e}")

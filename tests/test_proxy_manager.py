@@ -123,3 +123,34 @@ class TestRotationAndHealth:
         # round-robin over the remaining healthy pool must never pick the dead one
         for _ in range(4):
             assert manager.get_next() == proxies[1]
+
+
+class TestProxyIntelligence:
+    def test_untested_proxy_score_is_neutral(self, manager):
+        proxy = manager.get_all_proxies()[0]
+        score = manager.calculate_proxy_score(proxy)
+        assert score == 0.5
+
+    def test_record_result_success(self, manager):
+        proxy = manager.get_all_proxies()[0]
+        manager.record_result(proxy, success=True, latency_ms=250.0)
+        assert manager.proxy_history[proxy]["successes"] == 1
+        assert manager.proxy_history[proxy]["failures"] == 0
+        assert 250.0 in manager.proxy_history[proxy]["latency_ms"]
+
+        score = manager.calculate_proxy_score(proxy)
+        assert score > 0.7
+
+    def test_select_smart(self, manager):
+        selected = manager.select_smart()
+        assert selected in manager.get_all_proxies()
+
+    def test_get_intelligence_stats(self, manager):
+        proxy = manager.get_all_proxies()[0]
+        manager.record_result(proxy, success=True, latency_ms=300.0)
+        stats = manager.get_intelligence_stats()
+        assert proxy in stats
+        assert stats[proxy]["success_rate"] == 100.0
+        assert stats[proxy]["total_uses"] == 1
+        assert stats[proxy]["avg_latency_ms"] == 300.0
+

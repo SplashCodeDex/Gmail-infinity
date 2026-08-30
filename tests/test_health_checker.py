@@ -68,3 +68,35 @@ class TestGetSummary:
         s = AccountHealthChecker.get_summary([])
         assert s["total"] == 0
         assert s["health_rate"] == 0
+
+
+class TestCheckAll:
+    def test_check_all_empty(self):
+        assert AccountHealthChecker.check_all([]) == []
+
+    def test_check_all_preserves_order_and_runs_concurrent(self):
+        accounts = [
+            {"email": "user1@gmail.com", "password": "p1"},
+            {"email": "user2@gmail.com", "password": "p2"},
+            {"email": "user3@gmail.com", "password": "p3"},
+        ]
+
+        def mock_check_single(email, password):
+            return {
+                "email": email,
+                "status": "active" if "user1" in email or "user3" in email else "locked",
+                "message": "ok",
+                "checked_at": "2026-08-30 00:00:00"
+            }
+
+        with patch.object(AccountHealthChecker, "check_single", side_effect=mock_check_single):
+            results = AccountHealthChecker.check_all(accounts, max_workers=4)
+
+        assert len(results) == 3
+        assert results[0]["email"] == "user1@gmail.com"
+        assert results[0]["status"] == "active"
+        assert results[1]["email"] == "user2@gmail.com"
+        assert results[1]["status"] == "locked"
+        assert results[2]["email"] == "user3@gmail.com"
+        assert results[2]["status"] == "active"
+

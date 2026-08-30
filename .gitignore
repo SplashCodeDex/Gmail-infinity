@@ -9,6 +9,8 @@ config/password.txt
 data/accounts.json
 data/database.db
 data/*.db
+data/*.db-shm
+data/*.db-wal
 data/crypt_cookies.json
 data/human_trace.json
 data/session_state.json

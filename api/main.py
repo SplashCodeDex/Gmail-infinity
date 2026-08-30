@@ -10,6 +10,7 @@ import threading
 from datetime import datetime
 from typing import Dict, List, Optional
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -17,9 +18,6 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 import uvicorn
 
-# Import core modules
-import sys
-from pathlib import Path
 sys.path.append(str(Path(__file__).parent.parent))
 
 from config.settings import Config
@@ -43,7 +41,6 @@ class SessionConfig(BaseModel):
     auto_recover: bool = True
 
 
-
 class ExportRequest(BaseModel):
     format: str = Field(pattern="^(json|csv|txt|all)$")
 
@@ -51,6 +48,7 @@ class ExportRequest(BaseModel):
 class HealthCheckRequest(BaseModel):
     """Optional subset of emails to check; omit to check every account."""
     emails: Optional[List[str]] = None
+    workers: int = Field(ge=1, le=20, default=8)
 
 
 class ProxyImportRequest(BaseModel):
@@ -71,13 +69,14 @@ class ConnectionManager:
         self.active_connections.append(websocket)
 
     def disconnect(self, websocket: WebSocket):
-        self.active_connections.remove(websocket)
+        if websocket in self.active_connections:
+            self.active_connections.remove(websocket)
 
     async def broadcast(self, message: dict):
-        for connection in self.active_connections:
+        for connection in list(self.active_connections):
             try:
                 await connection.send_json(message)
-            except:
+            except Exception:
                 pass
 
 
@@ -109,6 +108,7 @@ class CreationSession:
         self.end_time = None
         self.stop_flag = False
         self.task = None
+        self.creator = None
         # Guards progress read-modify-write: worker threads call bump_progress()
         # while the event loop / API handlers read the dict concurrently.
         self._progress_lock = threading.Lock()
@@ -120,6 +120,13 @@ class CreationSession:
             'message': message
         }
         self.logs.append(log_entry)
+        if len(self.logs) > 500:
+            self.logs = self.logs[-500:]
+
+        asyncio.create_task(
+            asyncio.to_thread(account_manager.db.append_session_log, self.session_id, level, message)
+        )
+
         await manager.broadcast({
             'type': 'session_log',
             'session_id': self.session_id,
@@ -144,6 +151,15 @@ class CreationSession:
             return dict(self.progress)
 
     async def broadcast_progress(self, snapshot: dict):
+        asyncio.create_task(
+            asyncio.to_thread(
+                account_manager.db.update_session,
+                self.session_id,
+                successes=snapshot.get('successes'),
+                failures=snapshot.get('failures'),
+                progress_json=snapshot
+            )
+        )
         await manager.broadcast({
             'type': 'session_progress',
             'session_id': self.session_id,
@@ -178,12 +194,44 @@ async def run_creation_session(session_id: str):
     try:
         session.status = 'running'
         session.start_time = datetime.now()
+        await asyncio.to_thread(
+            account_manager.db.update_session,
+            session_id,
+            status='running',
+            started_at=session.start_time.strftime('%Y-%m-%d %H:%M:%S')
+        )
         await session.add_log('info', 'Session started')
 
-        # Import enhanced creator
         from enhanced_creator import EnhancedCreator
+        loop = asyncio.get_running_loop()
 
-        # Create instance
+        def on_creator_event(event_name: str, payload: dict):
+            if event_name == 'account_start':
+                idx = payload.get('index', 0)
+                tot = payload.get('total', session.config.num_accounts)
+                asyncio.run_coroutine_threadsafe(
+                    session.add_log('info', f'Creating account {idx + 1}/{tot}'),
+                    loop
+                )
+            elif event_name == 'account_result':
+                result = payload.get('result', {})
+                idx = result.get('index', 0)
+                is_success = result.get('success', False)
+                email = result.get('email', '')
+                snapshot = session.bump_progress(success=is_success, index=idx)
+                asyncio.run_coroutine_threadsafe(session.broadcast_progress(snapshot), loop)
+                if is_success:
+                    asyncio.run_coroutine_threadsafe(session.add_account(result), loop)
+                    asyncio.run_coroutine_threadsafe(
+                        session.add_log('success', f'✓ Created: {email}'),
+                        loop
+                    )
+                else:
+                    asyncio.run_coroutine_threadsafe(
+                        session.add_log('error', f'✗ Failed: {email or "unknown"}'),
+                        loop
+                    )
+
         creator = EnhancedCreator(
             num_accounts=session.config.num_accounts,
             use_sms=session.config.use_sms,
@@ -192,59 +240,29 @@ async def run_creation_session(session_id: str):
             export_format=session.config.export_format,
             concurrent=session.config.concurrent,
             auto_recover=session.config.auto_recover,
-            adaptive=session.config.adaptive
+            adaptive=session.config.adaptive,
+            session_id=session_id,
+            event_callback=on_creator_event,
+            headless=True,
         )
+        session.creator = creator
 
-        # Wrap creation method to hook into events
-        original_create = creator.create_account_with_intelligence
-        loop = asyncio.get_running_loop()
+        # Run creator in threadpool
+        success = await asyncio.to_thread(creator.run)
 
-        def wrapped_create(index, progress=None, task_id=None):
-            if session.stop_flag:
-                return {'success': False, 'email': 'stopped', 'error': 'Stopped by user'}
-
-            try:
-                asyncio.run_coroutine_threadsafe(
-                    session.add_log('info', f'Creating account {index + 1}/{session.config.num_accounts}'),
-                    loop
-                )
-            except Exception:
-                pass
-
-            result = original_create(index, progress, task_id)
-
-            if result and result.get('success'):
-                try:
-                    snapshot = session.bump_progress(success=True, index=index)
-                    asyncio.run_coroutine_threadsafe(session.broadcast_progress(snapshot), loop)
-                    asyncio.run_coroutine_threadsafe(session.add_account(result), loop)
-                    asyncio.run_coroutine_threadsafe(
-                        session.add_log('success', f'✓ Created: {result.get("email", "")}'),
-                        loop
-                    )
-                except Exception:
-                    pass
-            else:
-                try:
-                    snapshot = session.bump_progress(success=False, index=index)
-                    asyncio.run_coroutine_threadsafe(session.broadcast_progress(snapshot), loop)
-                    asyncio.run_coroutine_threadsafe(
-                        session.add_log('error', f'✗ Failed: {result.get("email", "unknown") if result else "unknown"}'),
-                        loop
-                    )
-                except Exception:
-                    pass
-
-            return result
-
-        creator.create_account_with_intelligence = wrapped_create
-
-        # Run in executor (blocking operation)
-        success = await loop.run_in_executor(None, creator.run)
-
-        session.status = 'completed' if success else 'failed'
+        session.status = 'stopped' if session.stop_flag else ('completed' if success else 'failed')
         session.end_time = datetime.now()
-        await session.add_log('info', f'Session completed: {session.progress["successes"]} successes')
+        await session.add_log('info', f'Session {session.status}: {session.progress["successes"]} successes, {session.progress["failures"]} failures')
+
+        await asyncio.to_thread(
+            account_manager.db.update_session,
+            session_id,
+            status=session.status,
+            successes=session.progress['successes'],
+            failures=session.progress['failures'],
+            progress_json=session.snapshot_progress(),
+            ended_at=session.end_time.strftime('%Y-%m-%d %H:%M:%S')
+        )
 
         await manager.broadcast({
             'type': 'session_complete',
@@ -255,8 +273,15 @@ async def run_creation_session(session_id: str):
 
     except Exception as e:
         session.status = 'failed'
+        session.end_time = datetime.now()
         await session.add_log('error', f'Session error: {str(e)}')
         logging.exception(f"Session {session_id} error")
+        await asyncio.to_thread(
+            account_manager.db.update_session,
+            session_id,
+            status='failed',
+            ended_at=session.end_time.strftime('%Y-%m-%d %H:%M:%S')
+        )
 
 
 # ============================================================================
@@ -265,10 +290,30 @@ async def run_creation_session(session_id: str):
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup
     logging.info("Starting Gmail Infinity Factory API")
+    try:
+        interrupted = await asyncio.to_thread(account_manager.db.get_interrupted_sessions)
+        now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        for s in interrupted:
+            sid = s.get("session_id")
+            if sid:
+                await asyncio.to_thread(
+                    account_manager.db.update_session,
+                    sid,
+                    status="interrupted",
+                    ended_at=now_str
+                )
+                await asyncio.to_thread(
+                    account_manager.db.append_session_log,
+                    sid,
+                    "warn",
+                    "Session marked as interrupted due to server restart"
+                )
+                logging.info(f"Rehydrated interrupted session {sid} -> 'interrupted'")
+    except Exception as e:
+        logging.warning(f"Session rehydration warning: {e}")
+
     yield
-    # Shutdown
     logging.info("Shutting down Gmail Infinity Factory API")
 
 
@@ -326,8 +371,7 @@ async def websocket_endpoint(websocket: WebSocket):
     await manager.connect(websocket)
     try:
         while True:
-            data = await websocket.receive_json()
-            # Handle client messages if needed
+            await websocket.receive_json()
     except WebSocketDisconnect:
         manager.disconnect(websocket)
     except Exception as e:
@@ -366,8 +410,8 @@ async def get_config():
 
 @app.get("/api/stats")
 async def get_stats():
-    account_stats = account_manager.get_stats()
-    proxy_stats = proxy_manager.get_stats()
+    account_stats = await asyncio.to_thread(account_manager.get_stats)
+    proxy_stats = await asyncio.to_thread(proxy_manager.get_stats)
 
     return {
         "accounts": {
@@ -390,25 +434,23 @@ async def get_stats():
 
 @app.get("/api/accounts")
 async def get_accounts(limit: int = 100, offset: int = 0):
-    accounts = account_manager.get_all()
-    total = len(accounts)
+    accounts_page = await asyncio.to_thread(account_manager.get_page, limit, offset)
+    total = await asyncio.to_thread(account_manager.get_count)
 
     return {
         "total": total,
         "limit": limit,
         "offset": offset,
-        "accounts": accounts[offset:offset + limit]
+        "accounts": accounts_page
     }
 
 
 @app.post("/api/accounts/health-check")
 async def health_check_accounts(request: Optional[HealthCheckRequest] = None):
     """Verify accounts are still alive via Gmail IMAP.
-
-    Blocking network I/O — runs in the executor threadpool. Checks a
-    subset when `emails` is given, otherwise every stored account.
+    Runs concurrently in ThreadPoolExecutor without blocking the event loop.
     """
-    accounts = account_manager.get_all()
+    accounts = await asyncio.to_thread(account_manager.get_all)
     if request and request.emails is not None:
         wanted = set(request.emails)
         accounts = [a for a in accounts if a.get("email") in wanted]
@@ -421,10 +463,8 @@ async def health_check_accounts(request: Optional[HealthCheckRequest] = None):
     if not to_check:
         return {"results": [], "summary": AccountHealthChecker.get_summary([])}
 
-    loop = asyncio.get_running_loop()
-    results = await loop.run_in_executor(
-        None, AccountHealthChecker.check_all, to_check, 1
-    )
+    workers = request.workers if request and request.workers else 8
+    results = await asyncio.to_thread(AccountHealthChecker.check_all, to_check, workers)
     return {
         "results": results,
         "summary": AccountHealthChecker.get_summary(results),
@@ -444,7 +484,7 @@ async def export_accounts(request: ExportRequest):
         raise HTTPException(400, f"Invalid format '{request.format}'. Supported: json, csv, txt, all")
 
     try:
-        path = exporter()
+        path = await asyncio.to_thread(exporter)
     except HTTPException:
         raise
     except Exception as e:
@@ -472,6 +512,14 @@ async def start_session(config: SessionConfig):
     session = CreationSession(session_id, config)
     active_sessions[session_id] = session
 
+    await asyncio.to_thread(
+        account_manager.db.save_session,
+        session_id,
+        "initializing",
+        config.num_accounts,
+        config.model_dump()
+    )
+
     # Start background task
     session.task = asyncio.create_task(run_creation_session(session_id))
 
@@ -483,62 +531,96 @@ async def start_session(config: SessionConfig):
 
 @app.get("/api/session/{session_id}")
 async def get_session(session_id: str):
-    if session_id not in active_sessions:
-        raise HTTPException(404, "Session not found")
+    if session_id in active_sessions:
+        session = active_sessions[session_id]
+        return {
+            "id": session_id,
+            "status": session.status,
+            "config": session.config.model_dump(),
+            "progress": session.snapshot_progress(),
+            "start_time": session.start_time.isoformat() if session.start_time else None,
+            "end_time": session.end_time.isoformat() if session.end_time else None,
+            "accounts_count": len(session.created_accounts),
+            "logs_count": len(session.logs)
+        }
 
-    session = active_sessions[session_id]
+    db_session = await asyncio.to_thread(account_manager.db.get_session, session_id)
+    if not db_session:
+        raise HTTPException(404, "Session not found")
 
     return {
         "id": session_id,
-        "status": session.status,
-        "config": session.config.model_dump(),
-        "progress": session.snapshot_progress(),
-        "start_time": session.start_time.isoformat() if session.start_time else None,
-        "end_time": session.end_time.isoformat() if session.end_time else None,
-        "accounts_count": len(session.created_accounts),
-        "logs_count": len(session.logs)
+        "status": db_session.get("status", "unknown"),
+        "config": db_session.get("config", {}),
+        "progress": db_session.get("progress", {}),
+        "start_time": db_session.get("started_at") or db_session.get("created_at"),
+        "end_time": db_session.get("ended_at"),
+        "accounts_count": db_session.get("successes", 0),
+        "logs_count": 0
     }
 
 
 @app.post("/api/session/{session_id}/stop")
 async def stop_session(session_id: str):
-    if session_id not in active_sessions:
-        raise HTTPException(404, "Session not found")
+    if session_id in active_sessions:
+        session = active_sessions[session_id]
+        session.stop_flag = True
+        if session.creator:
+            session.creator.stop_requested = True
+        session.status = 'stopped'
+        await asyncio.to_thread(account_manager.db.update_session, session_id, status='stopped')
+        return {"message": "Session stopped"}
 
-    session = active_sessions[session_id]
-    session.stop_flag = True
-    session.status = 'stopped'
+    db_session = await asyncio.to_thread(account_manager.db.get_session, session_id)
+    if db_session:
+        await asyncio.to_thread(account_manager.db.update_session, session_id, status='stopped')
+        return {"message": "Session stopped"}
 
-    return {"message": "Session stopped"}
+    raise HTTPException(404, "Session not found")
 
 
 @app.get("/api/session/{session_id}/logs")
 async def get_session_logs(session_id: str):
-    if session_id not in active_sessions:
+    if session_id in active_sessions:
+        session = active_sessions[session_id]
+        return {"logs": session.logs[-100:]}
+
+    db_logs = await asyncio.to_thread(account_manager.db.get_session_logs, session_id, 100)
+    if not db_logs and not await asyncio.to_thread(account_manager.db.get_session, session_id):
         raise HTTPException(404, "Session not found")
 
-    session = active_sessions[session_id]
-    return {"logs": session.logs[-100:]}
+    return {"logs": db_logs}
 
 
 @app.get("/api/sessions")
-async def get_all_sessions():
+async def get_all_sessions(limit: int = 100, offset: int = 0):
+    db_sessions = await asyncio.to_thread(account_manager.db.get_sessions, limit, offset)
     sessions_data = []
-    for session_id, session in active_sessions.items():
-        sessions_data.append({
-            'id': session_id,
-            'status': session.status,
-            'progress': session.snapshot_progress(),
-            'start_time': session.start_time.isoformat() if session.start_time else None,
-        })
+    for s in db_sessions:
+        sid = s.get("session_id")
+        if sid in active_sessions:
+            live = active_sessions[sid]
+            sessions_data.append({
+                'id': sid,
+                'status': live.status,
+                'progress': live.snapshot_progress(),
+                'start_time': live.start_time.isoformat() if live.start_time else None,
+            })
+        else:
+            sessions_data.append({
+                'id': sid,
+                'status': s.get("status", "unknown"),
+                'progress': s.get("progress", {}),
+                'start_time': s.get("started_at") or s.get("created_at"),
+            })
 
     return {"sessions": sessions_data}
 
 
 @app.get("/api/proxies")
 async def get_proxies():
-    proxies = proxy_manager.get_all_proxies()
-    stats = proxy_manager.get_stats()
+    proxies = await asyncio.to_thread(proxy_manager.get_all_proxies)
+    stats = await asyncio.to_thread(proxy_manager.get_stats)
 
     return {
         "total": len(proxies),
@@ -551,8 +633,8 @@ async def get_proxies():
 @app.post("/api/proxies/import")
 async def import_proxies(request: ProxyImportRequest):
     try:
-        added = proxy_manager.add_proxies(request.proxies, replace=request.replace)
-        stats = proxy_manager.get_stats()
+        added = await asyncio.to_thread(proxy_manager.add_proxies, request.proxies, request.replace)
+        stats = await asyncio.to_thread(proxy_manager.get_stats)
         return {
             "success": True,
             "added": added,
@@ -567,10 +649,9 @@ async def import_proxies(request: ProxyImportRequest):
 async def fetch_public_proxies():
     try:
         from core.proxy_fetcher import fetch_proxies
-        loop = asyncio.get_running_loop()
-        fetched = await loop.run_in_executor(None, fetch_proxies)
-        added = proxy_manager.add_proxies(fetched, replace=False)
-        stats = proxy_manager.get_stats()
+        fetched = await asyncio.to_thread(fetch_proxies)
+        added = await asyncio.to_thread(proxy_manager.add_proxies, fetched, False)
+        stats = await asyncio.to_thread(proxy_manager.get_stats)
         return {
             "success": True,
             "fetched": len(fetched),
@@ -585,7 +666,7 @@ async def fetch_public_proxies():
 @app.post("/api/proxies/clear")
 async def clear_proxies():
     try:
-        proxy_manager.clear_proxies()
+        await asyncio.to_thread(proxy_manager.clear_proxies)
         return {"success": True, "message": "Proxy pool cleared"}
     except Exception as e:
         raise HTTPException(500, f"Failed to clear proxies: {e}")
@@ -593,8 +674,7 @@ async def clear_proxies():
 
 @app.post("/api/proxies/test")
 async def test_proxies():
-    loop = asyncio.get_running_loop()
-    results = await loop.run_in_executor(None, proxy_manager.check_all_health_detailed)
+    results = await asyncio.to_thread(proxy_manager.check_all_health_detailed)
     return {"results": results}
 
 
@@ -625,9 +705,12 @@ async def test_telegram_alert():
                 "success": False,
                 "message": "Telegram Bot Token or Chat ID is not configured in .env"
             }
-        ok, msg = notifier.test_connection()
+        ok, msg = await asyncio.to_thread(notifier.test_connection)
         if ok:
-            sent = notifier.send("<b>Gmail Infinity Factory</b>\nPipeline test alert verified successfully!")
+            sent = await asyncio.to_thread(
+                notifier.send,
+                "<b>Gmail Infinity Factory</b>\nPipeline test alert verified successfully!"
+            )
             return {
                 "success": sent,
                 "message": msg if sent else "Failed to deliver message to chat"

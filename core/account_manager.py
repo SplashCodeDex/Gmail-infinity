@@ -53,33 +53,17 @@ class AccountManager:
     def get_all(self):
         return self.db.get_all_accounts()
 
+    def get_page(self, limit=50, offset=0):
+        return self.db.get_accounts_page(limit, offset)
+
     def get_count(self):
-        accounts = self.db.get_all_accounts()
-        return len(accounts)
+        return self.db.get_accounts_count()
 
     def get_stats(self):
-        accounts = self.db.get_all_accounts()
-        total = len(accounts)
-        active = sum(1 for a in accounts if a.get("status") == "active")
-        strategies = {}
-        sms_services = {}
-        for a in accounts:
-            s = a.get("strategy", "unknown") or "unknown"
-            strategies[s] = strategies.get(s, 0) + 1
-            svc = a.get("sms_service", "") or ""
-            if svc:
-                sms_services[svc] = sms_services.get(svc, 0) + 1
-
-        return {
-            "total": total,
-            "active": active,
-            "success_rate": (active / total * 100) if total > 0 else 0,
-            "strategies": strategies,
-            "sms_services": sms_services,
-        }
+        return self.db.get_stats()
 
     def get_last_account(self):
-        accounts = self.db.get_all_accounts()
+        accounts = self.db.get_accounts_page(limit=1, offset=0)
         return accounts[0] if accounts else None
 
     def export_csv(self, filepath=None):

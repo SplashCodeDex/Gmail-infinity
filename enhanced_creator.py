@@ -66,211 +66,9 @@ from config.settings import Config
 from core.account_manager import account_manager
 from core.proxy_manager import proxy_manager
 from core.retry_engine import retry_engine
+from core.strategy_engine import AdaptiveStrategyEngine
 
 console = Console()
-
-
-class AdaptiveStrategyEngine:
-    """Machine learning-based strategy selector that learns from success patterns."""
-
-    def __init__(self):
-        self.strategy_stats = defaultdict(lambda: {'attempts': 0, 'successes': 0, 'failures': 0, 'avg_time': 0})
-        self.recent_results = deque(maxlen=50)  # Last 50 results for pattern detection
-        self.banned_strategies = set()
-        self.cooldown_strategies = {}  # Strategy -> cooldown_until timestamp
-
-    def get_strategy_score(self, strategy: str) -> float:
-        """Calculate strategy score based on historical performance."""
-        stats = self.strategy_stats[strategy]
-
-        if stats['attempts'] == 0:
-            return 0.5  # Neutral score for untried strategies
-
-        # Calculate success rate
-        success_rate = stats['successes'] / stats['attempts']
-
-        # Factor in speed (lower time = better)
-        time_penalty = min(stats['avg_time'] / 300, 1.0)  # Normalize to 5 minutes
-
-        # Calculate final score
-        score = success_rate * 0.7 + (1 - time_penalty) * 0.3
-
-        # Penalize if in cooldown
-        if strategy in self.cooldown_strategies:
-            if time.time() < self.cooldown_strategies[strategy]:
-                score *= 0.3  # Heavily penalize cooled-down strategies
-            else:
-                del self.cooldown_strategies[strategy]
-
-        # Zero out banned strategies
-        if strategy in self.banned_strategies:
-            score = 0
-
-        return score
-
-    def select_strategy(self, available_strategies: List[str]) -> str:
-        """Intelligently select the best strategy based on ML scoring."""
-        # Calculate scores for all strategies
-        scored = [(s, self.get_strategy_score(s)) for s in available_strategies]
-
-        # Sort by score
-        scored.sort(key=lambda x: x[1], reverse=True)
-
-        # Epsilon-greedy: 80% best, 20% exploration
-        if random.random() < 0.8 and scored[0][1] > 0:
-            return scored[0][0]
-        else:
-            # Explore: weighted random selection
-            weights = [max(score, 0.1) for _, score in scored]
-            return random.choices([s for s, _ in scored], weights=weights)[0]
-
-    def record_result(self, strategy: str, success: bool, duration: float):
-        """Record strategy result for learning."""
-        stats = self.strategy_stats[strategy]
-        stats['attempts'] += 1
-
-        if success:
-            stats['successes'] += 1
-        else:
-            stats['failures'] += 1
-
-        # Update average time (exponential moving average)
-        if stats['avg_time'] == 0:
-            stats['avg_time'] = duration
-        else:
-            stats['avg_time'] = 0.7 * stats['avg_time'] + 0.3 * duration
-
-        # Add to recent results for pattern detection
-        self.recent_results.append({'strategy': strategy, 'success': success, 'time': time.time()})
-
-        # Detect failure patterns
-        self._detect_failure_patterns(strategy)
-
-    def _detect_failure_patterns(self, strategy: str):
-        """Detect if a strategy is consistently failing and take action."""
-        recent_strategy_results = [r for r in self.recent_results if r['strategy'] == strategy]
-
-        if len(recent_strategy_results) >= 5:
-            last_5 = recent_strategy_results[-5:]
-            failures = sum(1 for r in last_5 if not r['success'])
-
-            # If 4/5 or 5/5 failures, put in cooldown
-            if failures >= 4:
-                cooldown_until = time.time() + 1800  # 30 minutes cooldown
-                self.cooldown_strategies[strategy] = cooldown_until
-                logging.warning(f"Strategy '{strategy}' in cooldown until {datetime.fromtimestamp(cooldown_until)}")
-
-            # If 10 consecutive failures, ban temporarily
-            if len(recent_strategy_results) >= 10:
-                last_10 = recent_strategy_results[-10:]
-                if all(not r['success'] for r in last_10):
-                    self.banned_strategies.add(strategy)
-                    logging.error(f"Strategy '{strategy}' banned due to consecutive failures")
-
-    def get_stats_summary(self) -> Dict:
-        """Get summary of all strategies performance."""
-        return {
-            strategy: {
-                'success_rate': (stats['successes'] / stats['attempts'] * 100) if stats['attempts'] > 0 else 0,
-                'attempts': stats['attempts'],
-                'successes': stats['successes'],
-                'failures': stats['failures'],
-                'avg_time': stats['avg_time'],
-                'score': self.get_strategy_score(strategy)
-            }
-            for strategy, stats in self.strategy_stats.items()
-        }
-
-
-class IntelligentProxyManager:
-    """Enhanced proxy manager with ML-based scoring and health prediction."""
-
-    def __init__(self):
-        self.proxy_scores = {}  # proxy -> score (0-1)
-        self.proxy_history = defaultdict(lambda: {'successes': 0, 'failures': 0, 'last_used': 0, 'response_times': deque(maxlen=10)})
-        self.proxy_health_cache = {}  # proxy -> (is_healthy, checked_at)
-        self.proxy_rotation_index = 0
-
-    def calculate_proxy_score(self, proxy: str) -> float:
-        """Calculate proxy reliability score."""
-        if not proxy:
-            return 0.5
-
-        history = self.proxy_history[proxy]
-        total = history['successes'] + history['failures']
-
-        if total == 0:
-            return 0.5  # Neutral for untested proxies
-
-        # Success rate component (60%)
-        success_rate = history['successes'] / total
-
-        # Speed component (20%)
-        avg_response = sum(history['response_times']) / len(history['response_times']) if history['response_times'] else 5.0
-        speed_score = max(0, 1 - (avg_response / 10))  # Normalize to 10 seconds
-
-        # Freshness component (20%) - penalize old proxies
-        time_since_use = time.time() - history['last_used'] if history['last_used'] > 0 else 0
-        freshness_score = max(0, 1 - (time_since_use / 3600))  # Decay over 1 hour
-
-        final_score = (success_rate * 0.6) + (speed_score * 0.2) + (freshness_score * 0.2)
-
-        return final_score
-
-    def select_best_proxy(self) -> Optional[str]:
-        """Select the best proxy based on ML scoring."""
-        if proxy_manager.count == 0:
-            return None
-
-        # Get all available proxies
-        available = proxy_manager.get_all_proxies()
-
-        if not available:
-            return None
-
-        # Calculate scores
-        scored_proxies = [(p, self.calculate_proxy_score(p)) for p in available]
-        scored_proxies.sort(key=lambda x: x[1], reverse=True)
-
-        # Epsilon-greedy selection with 85% exploitation
-        if random.random() < 0.85 and scored_proxies:
-            return scored_proxies[0][0]
-        else:
-            return random.choice(available)
-
-    def record_proxy_result(self, proxy: str, success: bool, response_time: float):
-        """Record proxy performance."""
-        if not proxy:
-            return
-
-        history = self.proxy_history[proxy]
-
-        if success:
-            history['successes'] += 1
-        else:
-            history['failures'] += 1
-
-        history['last_used'] = time.time()
-        history['response_times'].append(response_time)
-
-        # Update proxy manager
-        if success:
-            proxy_manager.mark_success(proxy)
-        else:
-            proxy_manager.mark_failure(proxy)
-
-    def get_proxy_stats(self) -> Dict:
-        """Get comprehensive proxy statistics."""
-        stats = {}
-        for proxy, history in self.proxy_history.items():
-            total = history['successes'] + history['failures']
-            stats[proxy] = {
-                'score': self.calculate_proxy_score(proxy),
-                'success_rate': (history['successes'] / total * 100) if total > 0 else 0,
-                'total_uses': total,
-                'avg_response_time': sum(history['response_times']) / len(history['response_times']) if history['response_times'] else 0
-            }
-        return stats
 
 
 class CheckpointManager:
@@ -333,7 +131,10 @@ class EnhancedCreator:
                  export_format: str = 'json',
                  concurrent: int = 1,
                  auto_recover: bool = True,
-                 adaptive: bool = True):
+                 adaptive: bool = True,
+                 session_id: Optional[str] = None,
+                 event_callback: Optional[callable] = None,
+                 headless: Optional[bool] = None):
 
         self.num_accounts = num_accounts
         self.use_sms = use_sms
@@ -343,6 +144,9 @@ class EnhancedCreator:
         self.concurrent = max(1, min(concurrent, 5))  # Limit 1-5 concurrent
         self.auto_recover = auto_recover
         self.adaptive = adaptive
+        self.session_id = session_id
+        self.event_callback = event_callback
+        self.headless = headless if headless is not None else (True if self.concurrent > 1 else Config.HEADLESS_MODE)
 
         # Statistics
         self.successes = 0
@@ -353,7 +157,7 @@ class EnhancedCreator:
 
         # Intelligence engines
         self.strategy_engine = AdaptiveStrategyEngine()
-        self.proxy_manager = IntelligentProxyManager()
+        self.proxy_manager = proxy_manager
         self.checkpoint_manager = CheckpointManager()
 
         # Database (via the unified account_manager facade)
@@ -452,8 +256,8 @@ class EnhancedCreator:
                 optimizations.append(f"⚙️  Concurrent workers optimized for {self.num_accounts} accounts")
 
         # Enable headless for concurrent mode
-        if self.concurrent > 1 and not Config.HEADLESS_MODE:
-            Config.HEADLESS_MODE = True
+        if self.concurrent > 1 and not self.headless:
+            self.headless = True
             optimizations.append("⚙️  Headless mode enabled for concurrent processing")
 
         # Display warnings
@@ -482,7 +286,7 @@ class EnhancedCreator:
         table.add_row("Core", "Target Accounts", str(self.num_accounts))
         table.add_row("", "Concurrent Workers", f"{self.concurrent} {'🔥' if self.concurrent > 1 else ''}")
         table.add_row("", "Engine", Config.ENGINE_MODE.upper())
-        table.add_row("", "Headless Mode", "✓ Enabled" if Config.HEADLESS_MODE else "✗ Disabled")
+        table.add_row("", "Headless Mode", "✓ Enabled" if self.headless else "✗ Disabled")
 
         # Intelligence
         table.add_row("Intelligence", "Adaptive Strategies", "✓ Enabled" if self.adaptive else "✗ Disabled")
@@ -537,6 +341,9 @@ class EnhancedCreator:
         """Create single account with full intelligence and retry logic."""
         start_time = time.time()
 
+        if self.stop_requested:
+            return {'index': index, 'email': 'stopped', 'success': False, 'error': 'Stopped by user', 'duration': 0}
+
         # Select strategy
         if self.adaptive:
             strategy = self.strategy_engine.select_strategy(self.available_strategies)
@@ -555,10 +362,21 @@ class EnhancedCreator:
             from core.identity import generate_password
             password = generate_password()
 
+        if self.event_callback:
+            try:
+                self.event_callback('account_start', {
+                    'index': index,
+                    'total': self.num_accounts,
+                    'username': username,
+                    'strategy': strategy
+                })
+            except Exception:
+                pass
+
         # Select proxy
         proxy = None
         if self.use_proxies and Config.ENABLE_PROXY:
-            proxy = self.proxy_manager.select_best_proxy()
+            proxy = self.proxy_manager.select_smart()
             logging.info(f"Account {index+1}: Selected proxy {proxy}")
 
         if progress and task_id:
@@ -585,8 +403,8 @@ class EnhancedCreator:
 
                 # Change proxy on retry
                 if proxy and self.use_proxies:
-                    self.proxy_manager.record_proxy_result(proxy, False, time.time() - start_time)
-                    proxy = self.proxy_manager.select_best_proxy()
+                    self.proxy_manager.record_result(proxy, False, latency_ms=(time.time() - start_time) * 1000)
+                    proxy = self.proxy_manager.select_smart()
                     logging.info(f"Account {index+1}: Switched to proxy {proxy}")
 
                 # Regenerate credentials on retry
@@ -611,6 +429,7 @@ class EnhancedCreator:
                         index, self.num_accounts, username, first_name, last_name,
                         password, progress, task_id, proxy,
                         use_sms_api=self.use_sms, flow_mode=strategy,
+                        headless=self.headless,
                     )
                 elif engine == 'appium':
                     from core.runners import run_appium_flow
@@ -642,7 +461,7 @@ class EnhancedCreator:
             self.strategy_engine.record_result(strategy, success, duration)
 
         if proxy and self.use_proxies:
-            self.proxy_manager.record_proxy_result(proxy, success, duration)
+            self.proxy_manager.record_result(proxy, success, latency_ms=duration * 1000)
 
         # Build result
         result = {
@@ -660,6 +479,12 @@ class EnhancedCreator:
         }
 
         logging.info(f"Account {index+1}: {'SUCCESS' if success else 'FAILED'} in {duration:.1f}s")
+
+        if self.event_callback:
+            try:
+                self.event_callback('account_result', {'result': result})
+            except Exception:
+                pass
 
         return result
 
@@ -981,7 +806,7 @@ class EnhancedCreator:
 
         # Proxy performance
         if self.use_proxies:
-            proxy_stats = self.proxy_manager.get_proxy_stats()
+            proxy_stats = self.proxy_manager.get_intelligence_stats()
             if proxy_stats:
                 console.print("\n")
                 table = Table(title="Top 5 Proxy Performance", show_header=True, header_style="bold magenta")
@@ -1045,7 +870,7 @@ class EnhancedCreator:
                 'session_id': self.checkpoint_manager.current_session_id,
                 'timestamp': datetime.now().isoformat(),
                 'strategy_stats': self.strategy_engine.get_stats_summary(),
-                'proxy_stats': self.proxy_manager.get_proxy_stats(),
+                'proxy_stats': self.proxy_manager.get_intelligence_stats(),
                 'session_stats': {
                     'total': self.num_accounts,
                     'successes': self.successes,
@@ -1065,6 +890,10 @@ class EnhancedCreator:
 
     def save_to_database(self):
         """Save session data to database."""
+        if self.session_id:
+            # API owns the canonical session record in SQLite; skip legacy insert
+            return
+
         try:
             duration = time.time() - self.start_time
             strategies_used = {}
@@ -1152,10 +981,6 @@ Examples:
 
     args = parser.parse_args()
 
-    # Override config
-    if args.headless:
-        Config.HEADLESS_MODE = True
-
     # Ensure directories exist
     os.makedirs("data", exist_ok=True)
     os.makedirs("data/checkpoints", exist_ok=True)
@@ -1170,6 +995,7 @@ Examples:
         concurrent=args.concurrent,
         auto_recover=args.auto_recover,
         adaptive=args.adaptive,
+        headless=True if args.headless else None,
     )
 
     # Run
