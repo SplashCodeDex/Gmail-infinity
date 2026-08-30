@@ -14,6 +14,7 @@ data/*.db-wal
 data/crypt_cookies.json
 data/human_trace.json
 data/session_state.json
+data/checkpoints/
 config/proxies.txt
 
 # ─── Python ───
