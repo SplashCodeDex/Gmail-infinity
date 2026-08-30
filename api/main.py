@@ -36,6 +36,7 @@ class SessionConfig(BaseModel):
     use_sms: bool = False
     use_proxies: bool = True
     warmup: bool = True
+    flow_mode: str = "adaptive"
     adaptive: bool = True
     export_format: str = "json"
     auto_recover: bool = True
@@ -88,6 +89,19 @@ manager = ConnectionManager()
 # ============================================================================
 
 active_sessions = {}
+
+
+# Fields safe to push to dashboard clients over WebSocket.
+# Excludes password, proxy (may embed credentials), and other secrets.
+_BROADCAST_ACCOUNT_FIELDS = (
+    'index', 'email', 'first_name', 'last_name', 'success',
+    'strategy', 'duration', 'created_at', 'error',
+)
+
+
+def _redact_account(account: dict) -> dict:
+    """Return a copy of an account result without credential-bearing fields."""
+    return {k: account[k] for k in _BROADCAST_ACCOUNT_FIELDS if k in account}
 
 
 class CreationSession:
@@ -181,7 +195,7 @@ class CreationSession:
         await manager.broadcast({
             'type': 'account_created',
             'session_id': self.session_id,
-            'account': account
+            'account': _redact_account(account)
         })
 
 
@@ -247,7 +261,8 @@ async def run_creation_session(session_id: str):
             export_format=session.config.export_format,
             concurrent=session.config.concurrent,
             auto_recover=session.config.auto_recover,
-            adaptive=session.config.adaptive,
+            adaptive=session.config.adaptive if session.config.flow_mode == "adaptive" else False,
+            flow_mode=session.config.flow_mode,
             session_id=session_id,
             event_callback=on_creator_event,
             headless=True,
@@ -528,6 +543,14 @@ async def _validate_session_preflight(config: SessionConfig):
         p_stats = await asyncio.to_thread(proxy_manager.get_stats)
         if p_stats.get("healthy", 0) == 0:
             raise HTTPException(400, "All proxies marked unhealthy — run a proxy test first")
+    elif config.use_proxies:
+        # Distinct from the pool-empty / unhealthy cases: the user asked for
+        # proxies but they are globally disabled in the server config.
+        raise HTTPException(
+            400,
+            "Proxies requested but globally disabled (ENABLE_PROXY is False) — "
+            "set ENABLE_PROXY=true in config/.env or turn off Use Proxies"
+        )
 
     if config.use_sms:
         has_5sim = bool(Config.FIVESIM_API_KEY)

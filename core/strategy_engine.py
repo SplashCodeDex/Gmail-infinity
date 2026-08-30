@@ -17,6 +17,7 @@ class AdaptiveStrategyEngine:
     def __init__(self, db=None):
         self.db = db
         self.strategy_stats = defaultdict(lambda: {'attempts': 0, 'successes': 0, 'failures': 0, 'avg_time': 0.0})
+        self.session_stats = defaultdict(lambda: {'attempts': 0, 'successes': 0, 'failures': 0, 'avg_time': 0.0})
         self.recent_results = deque(maxlen=50)  # Last 50 results for pattern detection
         self.banned_strategies = set()
         self.cooldown_strategies = {}  # Strategy -> cooldown_until timestamp
@@ -87,27 +88,40 @@ class AdaptiveStrategyEngine:
             weights = [max(score, 0.1) for _, score in scored]
             return random.choices([s for s, _ in scored], weights=weights)[0]
 
-    def record_result(self, strategy: str, success: bool, duration: float):
-        """Record strategy result for learning."""
-        stats = self.strategy_stats[strategy]
+    @staticmethod
+    def _apply_result(stats, success: bool, duration: float):
+        """Increment a single aggregate dict with one execution result."""
         stats['attempts'] += 1
-
         if success:
             stats['successes'] += 1
         else:
             stats['failures'] += 1
-
-        # Update average time (exponential moving average)
+        # Exponential moving average for time
         if stats['avg_time'] == 0:
             stats['avg_time'] = duration
         else:
             stats['avg_time'] = 0.7 * stats['avg_time'] + 0.3 * duration
+
+    def record_result(self, strategy: str, success: bool, duration: float):
+        """Record strategy result for learning.
+
+        strategy_stats is the cumulative estimate (seeded history + live
+        results) used for scoring. session_stats is the session-local
+        delta used for persistence — persisting the cumulative estimate
+        re-wrote seeded history every session, inflating the aggregates.
+        """
+        self._apply_result(self.strategy_stats[strategy], success, duration)
+        self._apply_result(self.session_stats[strategy], success, duration)
 
         # Add to recent results for pattern detection
         self.recent_results.append({'strategy': strategy, 'success': success, 'time': time.time()})
 
         # Detect failure patterns
         self._detect_failure_patterns(strategy)
+
+    def get_session_stats(self):
+        """Return the session-local (delta-only) aggregates for persistence."""
+        return dict(self.session_stats)
 
     def _detect_failure_patterns(self, strategy: str):
         """Detect if a strategy is consistently failing and take action."""

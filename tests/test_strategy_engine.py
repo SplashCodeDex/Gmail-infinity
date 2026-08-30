@@ -95,3 +95,61 @@ class TestAdaptiveStrategyEngine:
         assert engine.get_strategy_score("youtube") < 0.35
 
 
+class TestSessionDeltaPersistence:
+    """Session-local deltas must not be contaminated by seeded history."""
+
+    def test_session_stats_are_delta_only(self):
+        class MockDB:
+            def get_recent_strategy_stats(self, limit_sessions=20):
+                return [{
+                    "strategy": "standard",
+                    "total_attempts": 10,
+                    "total_successes": 9,
+                    "total_failures": 1,
+                    "avg_time": 25.0,
+                }]
+
+        engine = AdaptiveStrategyEngine(db=MockDB())
+        # Seeded history feeds scoring...
+        assert engine.strategy_stats["standard"]["attempts"] == 10
+        # ...but must NOT appear in the session delta intended for persistence
+        assert "standard" not in engine.get_session_stats()
+
+        engine.record_result("standard", True, 30.0)
+        engine.record_result("standard", False, 60.0)
+
+        delta = engine.get_session_stats()["standard"]
+        assert delta["attempts"] == 2
+        assert delta["successes"] == 1
+        assert delta["failures"] == 1
+        # EMA mixing for the two new results
+        assert delta["avg_time"] == 0.7 * 30.0 + 0.3 * 60.0
+
+        # Cumulative estimate still includes the seed for scoring
+        total = engine.strategy_stats["standard"]
+        assert total["attempts"] == 12
+        assert total["successes"] == 10
+
+    def test_session_stats_empty_before_any_results(self):
+        class MockDB:
+            def get_recent_strategy_stats(self, limit_sessions=20):
+                return [{
+                    "strategy": "standard",
+                    "total_attempts": 10,
+                    "total_successes": 9,
+                    "total_failures": 1,
+                    "avg_time": 25.0,
+                }]
+
+        engine = AdaptiveStrategyEngine(db=MockDB())
+        assert engine.get_session_stats() == {}
+
+    def test_avg_time_ema_across_results(self):
+        engine = AdaptiveStrategyEngine()
+        engine.record_result("standard", True, 10.0)
+        engine.record_result("standard", True, 30.0)
+        delta = engine.get_session_stats()["standard"]
+        assert delta["attempts"] == 2
+        assert delta["avg_time"] == 16.0  # 0.7 * 10 + 0.3 * 30
+
+

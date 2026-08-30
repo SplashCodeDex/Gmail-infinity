@@ -129,6 +129,7 @@ class EnhancedCreator:
                  concurrent: int = 1,
                  auto_recover: bool = True,
                  adaptive: bool = True,
+                 flow_mode: str = "adaptive",
                  session_id: Optional[str] = None,
                  event_callback: Optional[callable] = None,
                  headless: Optional[bool] = None):
@@ -140,7 +141,13 @@ class EnhancedCreator:
         self.export_format = export_format
         self.concurrent = max(1, min(concurrent, 5))  # Limit 1-5 concurrent
         self.auto_recover = auto_recover
-        self.adaptive = adaptive
+        self.flow_mode = flow_mode or ("adaptive" if adaptive else "standard")
+        if self.flow_mode != "adaptive" and self.flow_mode in ['standard', 'youtube', 'workspace']:
+            self.adaptive = False
+            self.selected_strategy = self.flow_mode
+        else:
+            self.adaptive = adaptive
+            self.selected_strategy = None
         self.session_id = session_id
         self.event_callback = event_callback
         self.headless = headless if headless is not None else (True if self.concurrent > 1 else Config.HEADLESS_MODE)
@@ -350,7 +357,9 @@ class EnhancedCreator:
             return {'index': index, 'email': 'stopped', 'success': False, 'error': 'Stopped by user', 'duration': 0}
 
         # Select strategy
-        if self.adaptive:
+        if getattr(self, 'selected_strategy', None):
+            strategy = self.selected_strategy
+        elif self.adaptive:
             strategy = self.strategy_engine.select_strategy(self.available_strategies)
         else:
             strategy = random.choice(self.available_strategies)
@@ -944,11 +953,14 @@ class EnhancedCreator:
 
     def save_to_database(self):
         """Save session data to database."""
-        # Always persist real per-strategy performance aggregates to session_strategy_stats
+        # Persist only the session-local strategy deltas to
+        # session_strategy_stats. Persisting the cumulative strategy_stats
+        # (seeded history + results) re-wrote prior sessions' numbers every
+        # run, double-counting them in get_recent_strategy_stats.
         try:
             sid = self.session_id or self.checkpoint_manager.current_session_id
             strat_rows = []
-            for strat, s_data in self.strategy_engine.strategy_stats.items():
+            for strat, s_data in self.strategy_engine.get_session_stats().items():
                 strat_rows.append({
                     "strategy": strat,
                     "attempts": s_data.get("attempts", 0),

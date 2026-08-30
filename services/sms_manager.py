@@ -105,14 +105,20 @@ async def finish_order(service_name: str, order_id: str):
 
 
 async def check_balance(service_name: str = None):
-    """Check balance for a specific service or all configured services."""
+    """Check balance for a specific service or all configured services.
+
+    Returns balances keyed by the canonical names used by /api/config:
+    '5sim' and 'sms-activate' (an 'sms_activate' alias is accepted on input).
+    """
     results = {}
     services = {
         '5sim': (Config.FIVESIM_API_KEY, _get_5sim_balance),
-        'sms_activate': (Config.SMS_ACTIVATE_API_KEY, _get_sms_activate_balance),
+        'sms-activate': (Config.SMS_ACTIVATE_API_KEY, _get_sms_activate_balance),
     }
 
     if service_name:
+        if service_name == 'sms_activate':  # legacy alias
+            service_name = 'sms-activate'
         key, fn = services.get(service_name, (None, None))
         if key and fn:
             results[service_name] = await fn()
