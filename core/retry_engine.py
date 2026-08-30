@@ -19,6 +19,53 @@ class CreationError:
     UNKNOWN = "unknown"
 
 
+class CircuitBreaker:
+    """Detects IP/QR flag storms or mass failure cascades to halt burn-out."""
+
+    def __init__(self, failure_threshold: int = 5, ip_block_threshold: int = 3):
+        self.failure_threshold = failure_threshold
+        self.ip_block_threshold = ip_block_threshold
+        self.consecutive_failures = 0
+        self.consecutive_ip_blocks = 0
+        self._tripped = False
+        self._trip_reason = ""
+
+    def record(self, success: bool, error_type: str = None):
+        if success:
+            self.consecutive_failures = 0
+            self.consecutive_ip_blocks = 0
+            self._tripped = False
+            self._trip_reason = ""
+            return
+
+        self.consecutive_failures += 1
+        if error_type in (CreationError.IP_FLAGGED, CreationError.QR_BLOCKED):
+            self.consecutive_ip_blocks += 1
+        else:
+            self.consecutive_ip_blocks = 0
+
+        if self.consecutive_ip_blocks >= self.ip_block_threshold:
+            self._tripped = True
+            self._trip_reason = f"IP/QR flag storm detected ({self.consecutive_ip_blocks} consecutive blocks)"
+            logger.error(f"[CIRCUIT_BREAKER] {self._trip_reason}")
+        elif self.consecutive_failures >= self.failure_threshold:
+            self._tripped = True
+            self._trip_reason = f"Consecutive failure threshold exceeded ({self.consecutive_failures} failures)"
+            logger.error(f"[CIRCUIT_BREAKER] {self._trip_reason}")
+
+    def is_tripped(self) -> bool:
+        return self._tripped
+
+    def get_trip_reason(self) -> str:
+        return self._trip_reason
+
+    def reset(self):
+        self.consecutive_failures = 0
+        self.consecutive_ip_blocks = 0
+        self._tripped = False
+        self._trip_reason = ""
+
+
 class RetryEngine:
     STRATEGIES = ["standard", "youtube", "workspace", "mobile_ua"]
 
@@ -39,8 +86,11 @@ class RetryEngine:
     def __init__(self):
         self._attempt_history = []
         self._strategy_scores = {s: 50 for s in self.STRATEGIES}
+        self.circuit_breaker = CircuitBreaker()
 
     def should_retry(self, error_type, attempt_count):
+        if self.circuit_breaker.is_tripped():
+            return False
         if attempt_count >= self.MAX_RETRIES:
             return False
         if error_type == CreationError.USERNAME_TAKEN:
@@ -78,6 +128,7 @@ class RetryEngine:
             "error_type": error_type,
             "timestamp": time.time(),
         })
+        self.circuit_breaker.record(success, error_type)
         if success:
             self._strategy_scores[strategy] = min(100, self._strategy_scores[strategy] + 15)
         else:

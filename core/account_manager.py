@@ -40,7 +40,8 @@ class AccountManager:
 
     def save(self, email, password, first_name="", last_name="",
              proxy="", strategy="", sms_service="", phone_number="",
-             birthday="", gender="", status="active", notes=""):
+             birthday="", gender="", status="active", notes="",
+             recovery_email=""):
         return self.db.save_account(
             email=email, password=password,
             first_name=first_name, last_name=last_name,
@@ -48,6 +49,7 @@ class AccountManager:
             sms_service=sms_service, phone_number=phone_number,
             birthday=birthday, gender=gender,
             status=status, notes=notes,
+            recovery_email=recovery_email,
         )
 
     def get_all(self):

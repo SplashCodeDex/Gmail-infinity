@@ -114,3 +114,23 @@ class TestDatabaseManager:
         assert logs[0]["level"] == "info"
         assert logs[1]["level"] == "success"
         assert "Created" in logs[1]["message"]
+
+    def test_recovery_email_and_update_status(self, db):
+        db.save_account(
+            email="recov@gmail.com",
+            password="pass",
+            recovery_email="backup@outlook.com",
+            status="unverified",
+            notes="Initial signup"
+        )
+        accounts = db.get_all_accounts()
+        assert len(accounts) == 1
+        assert accounts[0]["recovery_email"] == "backup@outlook.com"
+        assert accounts[0]["status"] == "unverified"
+
+        # Update status
+        assert db.update_account_status("recov@gmail.com", "active", notes="Warmed and login verified") is True
+        updated = db.get_all_accounts()
+        assert updated[0]["status"] == "active"
+        assert updated[0]["notes"] == "Warmed and login verified"
+

@@ -358,16 +358,22 @@ async def _handle_post_registration_steps(page, username, progress, account_task
                 if recovery_email:
                     logger.info(f"[POST-REG] Entering recovery email: {recovery_email}")
                     _update_progress(progress, account_task, description="Setting recovery email...")
-                    for sel in ['input[type="email"]', 'input[name="recoveryEmail"]', 'input[aria-label*="recovery" i]']:
+                    filled = False
+                    for sel in ['input[name="recoveryEmail"]', '#recoveryEmail', 'input[type="email"]', 'input[aria-label*="recovery" i]', 'input[aria-label*="استرداد" i]']:
                         try:
                             inp = await page.query_selector(sel)
                             if inp and await inp.is_visible():
+                                await inp.click()
                                 await inp.fill(recovery_email)
                                 await page.wait_for_timeout(500)
-                                await _try_click(page, ["button:has-text('Next')", "button:has-text('التالي')", "button[type='submit']"])
+                                filled = True
                                 break
                         except Exception:
                             continue
+                    if filled:
+                        await _try_click(page, ["button:has-text('Next')", "button:has-text('التالي')", "button[type='submit']", "div[role='button']:has-text('Next')"])
+                    else:
+                        await _try_click(page, ["button:has-text('Skip')", "button:has-text('تخطي')", "span:has-text('Skip')"])
                 else:
                     logger.info("[POST-REG] No recovery email configured -> clicking Skip")
                     _update_progress(progress, account_task, description="Skipping recovery email...")
@@ -1109,6 +1115,7 @@ async def async_playwright_flow(i, num_accounts, username, first_name, last_name
         logger.info(f"Account VERIFIED and created: {username}@gmail.com")
 
         # Save to database
+        recovery_email_val = getattr(Config, 'RECOVERY_EMAIL', '')
         try:
             from core.account_manager import account_manager
             account_manager.save(
@@ -1121,6 +1128,9 @@ async def async_playwright_flow(i, num_accounts, username, first_name, last_name
                 sms_service=method if "sms" in method else "",
                 birthday=f"{month}/{day}/{year}",
                 gender=gender,
+                recovery_email=recovery_email_val,
+                status="active",
+                notes="Signup flow completed",
             )
         except Exception as db_err:
             logger.error(f"Failed to save account: {db_err}")
@@ -1141,13 +1151,26 @@ async def async_playwright_flow(i, num_accounts, username, first_name, last_name
         except Exception:
             pass
 
-        # Post-creation account warming
+        # Post-creation account warming & verification check
         try:
             if Config.ENABLE_SESSION_WARMING:
                 from core.account_warmer import warm_account_playwright
+                from core.account_manager import account_manager
                 _update_progress(progress, account_task, completed=98,
-                                description="Warming new account...")
-                await warm_account_playwright(f"{username}@gmail.com", password, duration_minutes=2)
+                                description="Warming new account & verifying login...")
+                warmed, warm_detail = await warm_account_playwright(f"{username}@gmail.com", password, duration_minutes=2)
+                if warmed:
+                    account_manager.db.update_account_status(
+                        f"{username}@gmail.com",
+                        status="active",
+                        notes="Login verified and warmed successfully"
+                    )
+                else:
+                    account_manager.db.update_account_status(
+                        f"{username}@gmail.com",
+                        status="unverified",
+                        notes=f"Created, but warm login verification failed: {warm_detail}"
+                    )
         except Exception as warm_err:
             logger.debug(f"Account warming (non-fatal): {warm_err}")
 

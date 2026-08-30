@@ -104,3 +104,33 @@ class TestShouldChangeProxy:
     ])
     def test_other_errors_do_not(self, engine, error):
         assert engine.should_change_proxy(error) is False
+
+
+class TestCircuitBreaker:
+    def test_initial_state_not_tripped(self, engine):
+        assert engine.circuit_breaker.is_tripped() is False
+        assert engine.circuit_breaker.get_trip_reason() == ""
+
+    def test_trips_on_consecutive_ip_blocks(self, engine):
+        for _ in range(3):
+            engine.record_attempt("standard", False, error_type=CreationError.IP_FLAGGED)
+
+        assert engine.circuit_breaker.is_tripped() is True
+        assert "IP/QR flag storm" in engine.circuit_breaker.get_trip_reason()
+        assert engine.should_retry(CreationError.TIMEOUT, 0) is False
+
+    def test_trips_on_consecutive_general_failures(self, engine):
+        for _ in range(5):
+            engine.record_attempt("standard", False, error_type=CreationError.TIMEOUT)
+
+        assert engine.circuit_breaker.is_tripped() is True
+        assert "failure threshold exceeded" in engine.circuit_breaker.get_trip_reason()
+
+    def test_success_resets_circuit_breaker(self, engine):
+        for _ in range(2):
+            engine.record_attempt("standard", False, error_type=CreationError.IP_FLAGGED)
+
+        engine.record_attempt("standard", True)
+        assert engine.circuit_breaker.is_tripped() is False
+        assert engine.circuit_breaker.consecutive_failures == 0
+

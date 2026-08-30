@@ -122,6 +122,7 @@ class DatabaseManager:
             ("sms_service", "TEXT DEFAULT ''"),
             ("phone_number", "TEXT DEFAULT ''"),
             ("notes", "TEXT DEFAULT ''"),
+            ("recovery_email", "TEXT DEFAULT ''"),
         ]
         try:
             with self._get_connection() as conn:
@@ -138,17 +139,18 @@ class DatabaseManager:
 
     def save_account(self, email, password, first_name="", last_name="",
                      proxy="", strategy="", sms_service="", phone_number="",
-                     birthday="", gender="", status="active", notes=""):
+                     birthday="", gender="", status="active", notes="",
+                     recovery_email=""):
         try:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
                 cursor.execute('''
                     INSERT INTO accounts
                     (email, password, first_name, last_name, birthday, gender,
-                     proxy, strategy, sms_service, phone_number, status, notes, created_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     proxy, strategy, sms_service, phone_number, status, notes, recovery_email, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ''', (email, password, first_name, last_name, birthday, gender,
-                      proxy, strategy, sms_service, phone_number, status, notes,
+                      proxy, strategy, sms_service, phone_number, status, notes, recovery_email,
                       datetime.now().strftime('%Y-%m-%d %H:%M:%S')))
                 conn.commit()
                 logger.info(f"Account saved: {email}")

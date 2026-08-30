@@ -18,7 +18,7 @@ async def warm_account_playwright(email, password, duration_minutes=3):
         from playwright.async_api import async_playwright
     except ImportError:
         logger.warning("Playwright not installed — skipping account warming")
-        return False
+        return False, "playwright_not_installed"
 
     try:
         async with async_playwright() as p:
@@ -51,9 +51,9 @@ async def warm_account_playwright(email, password, duration_minutes=3):
             if "myaccount" in page.url or "mail.google" in page.url:
                 logger.info(f"Successfully logged in: {email}")
             else:
-                logger.warning(f"Login may have failed for {email}: {page.url}")
+                logger.warning(f"Login verification failed for {email}: {page.url}")
                 await browser.close()
-                return False
+                return False, f"login_redirect_failed: {page.url}"
 
             start = time.time()
             target = duration_minutes * 60
@@ -81,9 +81,9 @@ async def warm_account_playwright(email, password, duration_minutes=3):
 
             await browser.close()
             logger.info(f"Account warming complete for {email}")
-            return True
+            return True, "verified_and_warmed"
 
     except Exception as e:
         logger.error(f"Account warming failed for {email}: {e}")
-        return False
+        return False, f"error: {str(e)}"
 

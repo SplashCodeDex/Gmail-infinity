@@ -155,13 +155,14 @@ class EnhancedCreator:
         self.failed_attempts = []
         self.start_time = None
 
-        # Intelligence engines
-        self.strategy_engine = AdaptiveStrategyEngine()
-        self.proxy_manager = proxy_manager
-        self.checkpoint_manager = CheckpointManager()
-
         # Database (via the unified account_manager facade)
         self.db = account_manager.db
+
+        # Intelligence engines
+        self.strategy_engine = AdaptiveStrategyEngine(db=self.db)
+        self.proxy_manager = proxy_manager
+        self.retry_engine = retry_engine
+        self.checkpoint_manager = CheckpointManager()
 
         # State
         self.completed_indices = set()
@@ -488,6 +489,25 @@ class EnhancedCreator:
 
         return result
 
+    def calculate_adaptive_delay(self, last_success: bool) -> float:
+        """Calculate dynamic adaptive delay based on recent failure patterns and signals."""
+        base_delay = float(Config.DELAY_BETWEEN_ACCOUNTS)
+        cb = self.retry_engine.circuit_breaker
+        consec_fails = cb.consecutive_failures
+
+        if last_success and consec_fails == 0:
+            # Smooth operation: base delay with natural human jitter (-2s to +3s)
+            return max(5.0, base_delay + random.uniform(-2.0, 3.0))
+
+        # Dynamic backoff: scale with consecutive failures
+        multiplier = 1.0 + (0.5 * min(consec_fails, 5))
+        if cb.consecutive_ip_blocks > 0:
+            multiplier += 0.8 * cb.consecutive_ip_blocks
+
+        backoff_delay = min(180.0, (base_delay * multiplier) + random.uniform(2.0, 6.0))
+        logging.info(f"[ADAPTIVE_PACING] Backoff delay adjusted to {backoff_delay:.1f}s (consecutive failures: {consec_fails})")
+        return backoff_delay
+
     def create_accounts_concurrent(self):
         """Create accounts with concurrent workers."""
         console.print(f"\n[bold green]🚀 Starting concurrent creation with {self.concurrent} workers...[/bold green]\n")
@@ -522,6 +542,13 @@ class EnhancedCreator:
                     if self.stop_requested:
                         break
 
+                    # Check circuit breaker before launching new worker
+                    if self.retry_engine.circuit_breaker.is_tripped():
+                        reason = self.retry_engine.circuit_breaker.get_trip_reason()
+                        console.print(f"\n[bold red]⚡ CIRCUIT BREAKER TRIPPED: {reason}[/bold red]")
+                        logging.error(f"Circuit breaker tripped: {reason}. Halting session to prevent burning remaining accounts.")
+                        break
+
                     task_id = worker_tasks[worker_id % self.concurrent]
                     future = executor.submit(self.create_account_with_intelligence, idx, progress, task_id)
                     future_to_index[future] = (idx, task_id)
@@ -553,9 +580,16 @@ class EnhancedCreator:
                         if self.auto_recover:
                             self.save_current_state()
 
-                        # Add delay between accounts
+                        # Check circuit breaker after worker finished
+                        if self.retry_engine.circuit_breaker.is_tripped():
+                            reason = self.retry_engine.circuit_breaker.get_trip_reason()
+                            console.print(f"\n[bold red]⚡ CIRCUIT BREAKER TRIPPED: {reason}[/bold red]")
+                            logging.error(f"Circuit breaker tripped: {reason}. Halting session.")
+                            break
+
+                        # Add adaptive delay between accounts
                         if idx < self.num_accounts - 1:
-                            delay = Config.DELAY_BETWEEN_ACCOUNTS
+                            delay = self.calculate_adaptive_delay(result['success'])
                             time.sleep(delay)
 
                     except Exception as e:
@@ -587,6 +621,13 @@ class EnhancedCreator:
                 if self.stop_requested:
                     break
 
+                # Circuit Breaker Check
+                if self.retry_engine.circuit_breaker.is_tripped():
+                    reason = self.retry_engine.circuit_breaker.get_trip_reason()
+                    console.print(f"\n[bold red]⚡ CIRCUIT BREAKER TRIPPED: {reason}[/bold red]")
+                    logging.error(f"Circuit breaker tripped: {reason}. Halting creation to prevent burning accounts.")
+                    break
+
                 current_task = progress.add_task(
                     f"[cyan]Account {idx+1}/{self.num_accounts}",
                     total=100
@@ -609,9 +650,16 @@ class EnhancedCreator:
                 if self.auto_recover:
                     self.save_current_state()
 
-                # Delay between accounts
+                # Check circuit breaker after attempt
+                if self.retry_engine.circuit_breaker.is_tripped():
+                    reason = self.retry_engine.circuit_breaker.get_trip_reason()
+                    console.print(f"\n[bold red]⚡ CIRCUIT BREAKER TRIPPED: {reason}[/bold red]")
+                    logging.error(f"Circuit breaker tripped: {reason}. Halting session.")
+                    break
+
+                # Adaptive Delay between accounts
                 if idx < self.num_accounts - 1:
-                    delay = Config.DELAY_BETWEEN_ACCOUNTS
+                    delay = self.calculate_adaptive_delay(result['success'])
                     time.sleep(delay)
 
     def save_current_state(self):
@@ -902,12 +950,19 @@ class EnhancedCreator:
                 strategy = acc.get('strategy', 'unknown')
                 strategies_used[strategy] = strategies_used.get(strategy, 0) + 1
 
+            errors = dict(self.retry_engine.get_stats().get("error_breakdown", {}))
+            for f in self.failed_attempts:
+                err = f.get('error')
+                if err:
+                    err_str = str(err)
+                    errors[err_str] = errors.get(err_str, 0) + 1
+
             self.db.save_session_stats(
                 total_attempts=self.num_accounts,
                 successes=self.successes,
                 failures=self.failures,
                 strategies_used=strategies_used,
-                errors={},
+                errors=errors,
                 duration_seconds=duration,
             )
         except Exception as e:

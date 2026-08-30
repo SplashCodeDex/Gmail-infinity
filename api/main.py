@@ -465,6 +465,15 @@ async def health_check_accounts(request: Optional[HealthCheckRequest] = None):
 
     workers = request.workers if request and request.workers else 8
     results = await asyncio.to_thread(AccountHealthChecker.check_all, to_check, workers)
+
+    # Persist verified health statuses to SQLite database
+    for r in results:
+        email = r.get("email")
+        status = r.get("status")
+        msg = r.get("message", "")
+        if email and status:
+            await asyncio.to_thread(account_manager.db.update_account_status, email, status, msg)
+
     return {
         "results": results,
         "summary": AccountHealthChecker.get_summary(results),

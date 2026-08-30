@@ -63,3 +63,21 @@ class TestAdaptiveStrategyEngine:
         assert summary["standard"]["attempts"] == 1
         assert summary["standard"]["successes"] == 1
         assert summary["standard"]["success_rate"] == 100.0
+
+    def test_load_historical_learning_from_db(self):
+        class MockDB:
+            def get_session_history(self, limit=100):
+                return [
+                    {
+                        "total_attempts": 10,
+                        "successes": 8,
+                        "strategies_used": '{"standard": 6, "youtube": 4}',
+                    }
+                ]
+
+        engine = AdaptiveStrategyEngine(db=MockDB())
+        assert engine.strategy_stats["standard"]["attempts"] == 6
+        assert engine.strategy_stats["standard"]["successes"] == 4  # 6 * 0.8 = 4
+        assert engine.strategy_stats["youtube"]["attempts"] == 4
+        assert engine.get_strategy_score("standard") > 0.5
+
