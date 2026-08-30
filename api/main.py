@@ -4,6 +4,7 @@ Ultra-lightweight, async API with WebSocket support.
 """
 import asyncio
 import logging
+import threading
 from datetime import datetime
 from typing import Dict, List, Optional
 from contextlib import asynccontextmanager
@@ -38,10 +39,20 @@ class SessionConfig(BaseModel):
     adaptive: bool = True
     export_format: str = "json"
     auto_recover: bool = True
+    engine_mode: Optional[str] = "playwright"
+    use_arabic_names: Optional[bool] = False
+    enable_poltergeist: Optional[bool] = True
+    enable_cookie_reaper: Optional[bool] = True
+    enable_recovery_chain: Optional[bool] = True
 
 
 class ExportRequest(BaseModel):
     format: str = Field(pattern="^(json|csv|txt|all)$")
+
+
+class ProxyImportRequest(BaseModel):
+    proxies: List[str] = []
+    replace: bool = False
 
 
 # ============================================================================
@@ -95,6 +106,9 @@ class CreationSession:
         self.end_time = None
         self.stop_flag = False
         self.task = None
+        # Guards progress read-modify-write: worker threads call bump_progress()
+        # while the event loop / API handlers read the dict concurrently.
+        self._progress_lock = threading.Lock()
 
     async def add_log(self, level: str, message: str):
         log_entry = {
@@ -109,17 +123,39 @@ class CreationSession:
             'log': log_entry
         })
 
-    async def update_progress(self, **kwargs):
-        self.progress.update(kwargs)
-        total_attempts = self.progress['successes'] + self.progress['failures']
-        if total_attempts > 0:
-            self.progress['success_rate'] = (self.progress['successes'] / total_attempts) * 100
+    def bump_progress(self, success: bool, index: int) -> dict:
+        """Thread-safe progress increment. Callable from worker threads
+        (concurrent > 1) without racing on the read-modify-write."""
+        with self._progress_lock:
+            key = 'successes' if success else 'failures'
+            self.progress[key] += 1
+            self.progress['current'] = max(self.progress['current'], index + 1)
+            total_attempts = self.progress['successes'] + self.progress['failures']
+            if total_attempts > 0:
+                self.progress['success_rate'] = (self.progress['successes'] / total_attempts) * 100
+            return dict(self.progress)
 
+    def snapshot_progress(self) -> dict:
+        """Return a consistent copy of progress for readers."""
+        with self._progress_lock:
+            return dict(self.progress)
+
+    async def broadcast_progress(self, snapshot: dict):
         await manager.broadcast({
             'type': 'session_progress',
             'session_id': self.session_id,
-            'progress': self.progress
+            'progress': snapshot
         })
+
+    async def update_progress(self, **kwargs):
+        with self._progress_lock:
+            self.progress.update(kwargs)
+            total_attempts = self.progress['successes'] + self.progress['failures']
+            if total_attempts > 0:
+                self.progress['success_rate'] = (self.progress['successes'] / total_attempts) * 100
+            snapshot = dict(self.progress)
+
+        await self.broadcast_progress(snapshot)
 
     async def add_account(self, account: dict):
         self.created_accounts.append(account)
@@ -176,13 +212,8 @@ async def run_creation_session(session_id: str):
 
             if result and result.get('success'):
                 try:
-                    asyncio.run_coroutine_threadsafe(
-                        session.update_progress(
-                            current=index + 1,
-                            successes=session.progress['successes'] + 1
-                        ),
-                        loop
-                    )
+                    snapshot = session.bump_progress(success=True, index=index)
+                    asyncio.run_coroutine_threadsafe(session.broadcast_progress(snapshot), loop)
                     asyncio.run_coroutine_threadsafe(session.add_account(result), loop)
                     asyncio.run_coroutine_threadsafe(
                         session.add_log('success', f'✓ Created: {result.get("email", "")}'),
@@ -192,13 +223,8 @@ async def run_creation_session(session_id: str):
                     pass
             else:
                 try:
-                    asyncio.run_coroutine_threadsafe(
-                        session.update_progress(
-                            current=index + 1,
-                            failures=session.progress['failures'] + 1
-                        ),
-                        loop
-                    )
+                    snapshot = session.bump_progress(success=False, index=index)
+                    asyncio.run_coroutine_threadsafe(session.broadcast_progress(snapshot), loop)
                     asyncio.run_coroutine_threadsafe(
                         session.add_log('error', f'✗ Failed: {result.get("email", "unknown") if result else "unknown"}'),
                         loop
@@ -221,7 +247,7 @@ async def run_creation_session(session_id: str):
             'type': 'session_complete',
             'session_id': session_id,
             'status': session.status,
-            'progress': session.progress
+            'progress': session.snapshot_progress()
         })
 
     except Exception as e:
@@ -330,19 +356,26 @@ async def get_accounts():
 
 @app.post("/api/accounts/export")
 async def export_accounts(request: ExportRequest):
-    try:
-        if request.format == 'json':
-            path = account_manager.export_json()
-        elif request.format == 'csv':
-            path = account_manager.export_csv()
-        elif request.format == 'txt':
-            path = account_manager.export_txt()
-        else:
-            raise HTTPException(400, "Invalid format")
+    exporters = {
+        'json': account_manager.export_json,
+        'csv': account_manager.export_csv,
+        'txt': account_manager.export_txt,
+    }
+    exporter = exporters.get(request.format)
+    if exporter is None:
+        # Raised outside the try/except so it reaches the client as a 400,
+        # not re-wrapped as a 500 by the generic handler below.
+        raise HTTPException(400, f"Invalid format '{request.format}'. Supported: json, csv, txt")
 
-        return FileResponse(path, filename=Path(path).name)
+    try:
+        path = exporter()
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(500, str(e))
+        logging.exception("Account export failed")
+        raise HTTPException(500, f"Export failed: {e}")
+
+    return FileResponse(path, filename=Path(path).name)
 
 
 @app.post("/api/session/start")
@@ -373,8 +406,8 @@ async def get_session(session_id: str):
     return {
         "id": session_id,
         "status": session.status,
-        "config": session.config.dict(),
-        "progress": session.progress,
+        "config": session.config.model_dump(),
+        "progress": session.snapshot_progress(),
         "start_time": session.start_time.isoformat() if session.start_time else None,
         "end_time": session.end_time.isoformat() if session.end_time else None,
         "accounts_count": len(session.created_accounts),
@@ -410,7 +443,7 @@ async def get_all_sessions():
         sessions_data.append({
             'id': session_id,
             'status': session.status,
-            'progress': session.progress,
+            'progress': session.snapshot_progress(),
             'start_time': session.start_time.isoformat() if session.start_time else None,
         })
 
@@ -425,8 +458,52 @@ async def get_proxies():
     return {
         "total": len(proxies),
         "healthy": stats.get('healthy', 0),
-        "list": proxies[:10]
+        "unhealthy": stats.get('unhealthy', 0),
+        "list": proxies
     }
+
+
+@app.post("/api/proxies/import")
+async def import_proxies(request: ProxyImportRequest):
+    try:
+        added = proxy_manager.add_proxies(request.proxies, replace=request.replace)
+        stats = proxy_manager.get_stats()
+        return {
+            "success": True,
+            "added": added,
+            "total": stats["total"],
+            "message": f"Successfully imported {added} proxies"
+        }
+    except Exception as e:
+        raise HTTPException(500, f"Failed to import proxies: {e}")
+
+
+@app.post("/api/proxies/fetch")
+async def fetch_public_proxies():
+    try:
+        from core.proxy_fetcher import fetch_proxies
+        loop = asyncio.get_running_loop()
+        fetched = await loop.run_in_executor(None, fetch_proxies)
+        added = proxy_manager.add_proxies(fetched, replace=False)
+        stats = proxy_manager.get_stats()
+        return {
+            "success": True,
+            "fetched": len(fetched),
+            "added": added,
+            "total": stats["total"],
+            "message": f"Fetched {len(fetched)} public proxies ({added} new added to pool)"
+        }
+    except Exception as e:
+        raise HTTPException(500, f"Failed to fetch public proxies: {e}")
+
+
+@app.post("/api/proxies/clear")
+async def clear_proxies():
+    try:
+        proxy_manager.clear_proxies()
+        return {"success": True, "message": "Proxy pool cleared"}
+    except Exception as e:
+        raise HTTPException(500, f"Failed to clear proxies: {e}")
 
 
 @app.post("/api/proxies/test")
@@ -434,6 +511,72 @@ async def test_proxies():
     loop = asyncio.get_running_loop()
     results = await loop.run_in_executor(None, proxy_manager.check_all_health_detailed)
     return {"results": results}
+
+
+@app.get("/api/sms/balances")
+async def get_sms_balances():
+    try:
+        from services.sms_manager import check_balance
+        balances = await check_balance()
+        return {
+            "success": True,
+            "balances": balances
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "balances": {},
+            "error": str(e)
+        }
+
+
+@app.post("/api/telegram/test")
+async def test_telegram_alert():
+    try:
+        from core.telegram_notifier import TelegramNotifier
+        notifier = TelegramNotifier()
+        if not notifier.enabled:
+            return {
+                "success": False,
+                "message": "Telegram Bot Token or Chat ID is not configured in .env"
+            }
+        ok, msg = notifier.test_connection()
+        if ok:
+            sent = notifier.send("<b>Gmail Infinity Factory</b>\nPipeline test alert verified successfully!")
+            return {
+                "success": sent,
+                "message": msg if sent else "Failed to deliver message to chat"
+            }
+        return {"success": False, "message": msg}
+    except Exception as e:
+        return {"success": False, "message": str(e)}
+
+
+@app.get("/api/engine/capabilities")
+async def get_engine_capabilities():
+    return {
+        "engines": [
+            {"id": "playwright", "name": "Playwright (Stealth Web)", "available": True},
+            {"id": "selenium", "name": "Selenium (Undetected Driver)", "available": True},
+            {"id": "appium", "name": "Appium (Android Native OS Emulator)", "available": True}
+        ],
+        "stealth_modules": {
+            "poltergeist": Config.ENABLE_POLTERGEIST,
+            "cookie_reaper": Config.ENABLE_COOKIE_REAPER,
+            "ghost_typer": Config.ENABLE_GHOST_TYPER,
+            "cdp_injection": Config.ENABLE_CDP_INJECTION,
+            "recovery_chain": Config.ENABLE_RECOVERY_CHAIN,
+            "mac_rotation": Config.ENABLE_MAC_ROTATION,
+        },
+        "identity": {
+            "use_arabic_names": Config.USE_ARABIC_NAMES,
+            "birthday": Config.YOUR_BIRTHDAY,
+            "gender": Config.YOUR_GENDER,
+        },
+        "telegram": {
+            "configured": bool(Config.TELEGRAM_BOT_TOKEN and Config.TELEGRAM_CHAT_ID)
+        }
+    }
 
 
 # ============================================================================
