@@ -1,36 +1,87 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import axios from 'axios'
+import { useToastStore } from './toast'
+
+// Dynamic API Base URL: fallback to '/api' for Vite proxy or env override
+const resolveApiBaseUrl = () => {
+  if (import.meta.env.VITE_API_URL) {
+    return import.meta.env.VITE_API_URL
+  }
+  return '/api'
+}
 
 const api = axios.create({
-  baseURL: 'http://localhost:8000/api'
+  baseURL: resolveApiBaseUrl(),
+  timeout: 30000,
 })
 
 export const useAppStore = defineStore('app', () => {
-  const stats = ref({})
+  const stats = ref({
+    accounts: { total: 0, successes: 0, failures: 0, success_rate: 0 },
+    proxies: { total: 0, healthy: 0, unhealthy: 0 },
+    active_sessions: 0,
+  })
   const config = ref({})
   const accounts = ref([])
   const sessions = ref([])
   const loading = ref(false)
+  const isRefreshing = ref(false)
+  const lastUpdated = ref(null)
+
+  const toast = useToastStore()
 
   async function fetchStats() {
-    const { data } = await api.get('/stats')
-    stats.value = data
+    try {
+      const { data } = await api.get('/stats')
+      stats.value = data
+      lastUpdated.value = new Date()
+    } catch (error) {
+      console.error('[Store] Failed to fetch stats:', error)
+    }
   }
 
   async function fetchConfig() {
-    const { data } = await api.get('/config')
-    config.value = data
+    try {
+      const { data } = await api.get('/config')
+      config.value = data
+    } catch (error) {
+      console.error('[Store] Failed to fetch config:', error)
+    }
   }
 
   async function fetchAccounts() {
-    const { data } = await api.get('/accounts')
-    accounts.value = data.accounts
+    try {
+      const { data } = await api.get('/accounts')
+      accounts.value = data.accounts || []
+    } catch (error) {
+      console.error('[Store] Failed to fetch accounts:', error)
+      toast.error(error.response?.data?.detail || error.message, 'Failed to Load Accounts')
+    }
   }
 
   async function fetchSessions() {
-    const { data } = await api.get('/sessions')
-    sessions.value = data.sessions
+    try {
+      const { data } = await api.get('/sessions')
+      sessions.value = data.sessions || []
+    } catch (error) {
+      console.error('[Store] Failed to fetch sessions:', error)
+    }
+  }
+
+  async function refreshAll() {
+    if (isRefreshing.value) return
+    isRefreshing.value = true
+    try {
+      await Promise.allSettled([
+        fetchStats(),
+        fetchConfig(),
+        fetchSessions(),
+        fetchAccounts(),
+      ])
+    } finally {
+      isRefreshing.value = false
+    }
   }
 
   async function startSession(sessionConfig) {
@@ -38,35 +89,166 @@ export const useAppStore = defineStore('app', () => {
     try {
       const { data } = await api.post('/session/start', sessionConfig)
       await fetchSessions()
+      await fetchStats()
+      toast.success(`Session started: ${data.session_id}`, 'Engine Launch')
       return data
+    } catch (error) {
+      const msg = error.response?.data?.detail || error.message
+      toast.error(msg, 'Failed to Start Session')
+      throw error
     } finally {
       loading.value = false
     }
   }
 
   async function stopSession(sessionId) {
-    await api.post(`/session/${sessionId}/stop`)
-    await fetchSessions()
+    try {
+      await api.post(`/session/${sessionId}/stop`)
+      await fetchSessions()
+      await fetchStats()
+      toast.info(`Session ${sessionId} has been stopped`, 'Session Halted')
+    } catch (error) {
+      const msg = error.response?.data?.detail || error.message
+      toast.error(msg, 'Failed to Stop Session')
+      throw error
+    }
   }
 
-  async function exportAccounts(format) {
-    const response = await api.post('/accounts/export', { format }, {
-      responseType: 'blob'
-    })
+  async function exportAccounts(format = 'json') {
+    let url = null
+    try {
+      const response = await api.post('/accounts/export', { format }, {
+        responseType: 'blob',
+      })
 
-    const url = window.URL.createObjectURL(new Blob([response.data]))
-    const link = document.createElement('a')
-    link.href = url
-    link.setAttribute('download', `accounts_${Date.now()}.${format}`)
-    document.body.appendChild(link)
-    link.click()
-    link.remove()
+      // If the server returned a JSON error body, axios still hands us a blob —
+      // surface the real error message instead of "downloading" it.
+      if (response.data?.type === 'application/json') {
+        const text = await response.data.text()
+        let detail = text
+        try {
+          detail = JSON.parse(text)?.detail || text
+        } catch { /* keep raw text */ }
+        throw new Error(detail)
+      }
+
+      url = window.URL.createObjectURL(new Blob([response.data]))
+      const link = document.createElement('a')
+      link.href = url
+      link.setAttribute('download', `gmail_infinity_accounts_${Date.now()}.${format}`)
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+
+      toast.success(`Exported accounts as ${format.toUpperCase()}`, 'Export Completed')
+    } catch (error) {
+      const msg = error.response?.data?.detail || error.message
+      toast.error(msg, 'Export Failed')
+      throw error
+    } finally {
+      // Always release the blob URL, even if click()/toast throws.
+      if (url) window.URL.revokeObjectURL(url)
+    }
   }
 
   async function testProxies() {
-    const { data } = await api.post('/proxies/test')
-    await fetchStats()
-    return data.results
+    try {
+      const { data } = await api.post('/proxies/test')
+      await fetchStats()
+      toast.success(`Tested ${data.results?.total || 0} proxies (${data.results?.healthy || 0} healthy)`, 'Proxy Health Check')
+      return data.results
+    } catch (error) {
+      const msg = error.response?.data?.detail || error.message
+      toast.error(msg, 'Proxy Health Test Failed')
+      throw error
+    }
+  }
+
+  async function importProxies(proxyList, replace = false) {
+    try {
+      const proxies = Array.isArray(proxyList)
+        ? proxyList
+        : proxyList.split('\n').map(l => l.trim()).filter(Boolean)
+      const { data } = await api.post('/proxies/import', { proxies, replace })
+      await fetchStats()
+      toast.success(`Imported ${data.added} proxies (Total: ${data.total})`, 'Proxies Saved')
+      return data
+    } catch (error) {
+      const msg = error.response?.data?.detail || error.message
+      toast.error(msg, 'Proxy Import Failed')
+      throw error
+    }
+  }
+
+  async function fetchPublicProxies() {
+    try {
+      const { data } = await api.post('/api/proxies/fetch')
+      await fetchStats()
+      toast.success(`Fetched ${data.fetched} public proxies (${data.added} new added)`, 'Public Proxy Pool')
+      return data
+    } catch (error) {
+      const msg = error.response?.data?.detail || error.message
+      toast.error(msg, 'Proxy Fetch Failed')
+      throw error
+    }
+  }
+
+  async function clearProxies() {
+    try {
+      await api.post('/proxies/clear')
+      await fetchStats()
+      toast.info('Proxy pool has been cleared', 'Proxy Pool')
+    } catch (error) {
+      const msg = error.response?.data?.detail || error.message
+      toast.error(msg, 'Failed to clear proxies')
+      throw error
+    }
+  }
+
+  async function fetchProxiesList() {
+    try {
+      const { data } = await api.get('/proxies')
+      return data
+    } catch (error) {
+      console.error('[Store] Failed to fetch proxies list:', error)
+      return { total: 0, healthy: 0, unhealthy: 0, list: [] }
+    }
+  }
+
+  async function fetchSmsBalances() {
+    try {
+      const { data } = await api.get('/sms/balances')
+      return data.balances || {}
+    } catch (error) {
+      console.error('[Store] Failed to fetch SMS balances:', error)
+      return {}
+    }
+  }
+
+  async function testTelegram() {
+    try {
+      const { data } = await api.post('/telegram/test')
+      if (data.success) {
+        toast.success(data.message || 'Telegram test message sent!', 'Telegram Bot')
+      } else {
+        toast.warning(data.message || 'Telegram delivery failed', 'Telegram Bot')
+      }
+      return data
+    } catch (error) {
+      const msg = error.response?.data?.detail || error.message
+      toast.error(msg, 'Telegram Test Failed')
+      throw error
+    }
+  }
+
+  async function fetchEngineCapabilities() {
+    try {
+      const { data } = await api.get('/engine/capabilities')
+      return data
+    } catch (error) {
+      console.error('[Store] Failed to fetch engine capabilities:', error)
+      return null
+    }
   }
 
   return {
@@ -75,13 +257,24 @@ export const useAppStore = defineStore('app', () => {
     accounts,
     sessions,
     loading,
+    isRefreshing,
+    lastUpdated,
     fetchStats,
     fetchConfig,
     fetchAccounts,
     fetchSessions,
+    refreshAll,
     startSession,
     stopSession,
     exportAccounts,
-    testProxies
+    testProxies,
+    importProxies,
+    fetchPublicProxies,
+    clearProxies,
+    fetchProxiesList,
+    fetchSmsBalances,
+    testTelegram,
+    fetchEngineCapabilities,
   }
 })
+
