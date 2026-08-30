@@ -1,7 +1,7 @@
 <template>
-  <div class="surface-card p-6 space-y-4">
+  <div class="surface-card p-5 space-y-4">
     <!-- Header & Search Toolbar -->
-    <div class="flex flex-col md:flex-row md:items-center justify-between pb-4 border-b border-zinc-800 gap-4">
+    <div class="flex flex-col md:flex-row md:items-center justify-between pb-3.5 border-b border-zinc-800 gap-3">
       <div class="flex items-center space-x-2.5">
         <div class="w-7 h-7 rounded-lg bg-zinc-800 flex items-center justify-center text-zinc-300">
           <AppIcon name="database" :size="14" />
@@ -10,26 +10,26 @@
       </div>
 
       <!-- Controls -->
-      <div class="flex flex-wrap items-center gap-2">
+      <div class="flex flex-wrap items-center gap-1.5">
         <!-- Search Input -->
-        <div class="relative w-full sm:w-60">
+        <div class="relative w-full sm:w-56">
           <input
             v-model="search"
             type="text"
-            placeholder="Search email..."
-            class="w-full pl-8 pr-3 py-1.5 bg-zinc-950 border border-zinc-700 rounded-lg text-xs text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-zinc-500 font-mono"
+            placeholder="Filter accounts..."
+            class="w-full pl-7 pr-2.5 py-1 bg-zinc-950 border border-zinc-800 rounded-lg text-xs text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-zinc-600 font-mono"
           />
-          <AppIcon name="search" :size="13" class="absolute left-2.5 top-2 text-zinc-500" />
+          <AppIcon name="search" :size="11" class="absolute left-2.5 top-1.5 text-zinc-500" />
         </div>
 
         <!-- Health Check -->
         <button
           @click="appStore.checkAccountsHealth()"
           :disabled="appStore.checkingHealth"
-          class="btn-secondary py-1.5 px-3 text-xs flex items-center space-x-1.5 disabled:opacity-50"
+          class="btn-secondary py-1 px-2.5 text-xs flex items-center space-x-1.5 disabled:opacity-50"
           title="Verify accounts are still alive via Gmail IMAP"
         >
-          <AppIcon name="activity" :size="13" />
+          <AppIcon name="activity" :size="12" />
           <span>{{ appStore.checkingHealth ? 'Checking…' : 'Health Check' }}</span>
         </button>
 
@@ -37,9 +37,9 @@
         <div class="relative">
           <button
             @click="showExportMenu = !showExportMenu"
-            class="btn-secondary py-1.5 px-3 text-xs flex items-center space-x-1.5"
+            class="btn-secondary py-1 px-2.5 text-xs flex items-center space-x-1.5"
           >
-            <AppIcon name="download" :size="13" />
+            <AppIcon name="download" :size="12" />
             <span>Export</span>
           </button>
 
@@ -61,7 +61,7 @@
         <!-- Refresh Action -->
         <button
           @click="appStore.fetchAccounts"
-          class="p-2 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-lg text-zinc-300 transition"
+          class="p-1 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-lg text-zinc-300 transition"
           title="Reload accounts list"
         >
           <AppIcon name="refresh-cw" :size="13" />

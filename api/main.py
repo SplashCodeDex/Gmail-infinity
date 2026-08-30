@@ -440,8 +440,14 @@ async def get_stats():
             "total": account_stats['total'],
             "successes": account_stats['active'],
             "failures": account_stats['total'] - account_stats['active'],
-            "success_rate": account_stats.get('success_rate', 0.0),
+            "success_rate": account_stats.get('vault_health_rate', 0.0),
             "strategies": account_stats['strategies'],
+        },
+        "creation": {
+            "total_attempts": account_stats.get('total_attempts', 0),
+            "successes": account_stats.get('session_successes', 0),
+            "failures": account_stats.get('session_failures', 0),
+            "success_rate": account_stats.get('creation_success_rate', 0.0),
         },
         "proxies": {
             "total": proxy_stats.get('total', 0),

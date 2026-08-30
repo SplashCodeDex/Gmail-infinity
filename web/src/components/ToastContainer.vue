@@ -11,8 +11,7 @@
       <div
         v-for="toast in toastStore.toasts"
         :key="toast.id"
-        class="pointer-events-auto w-full bg-zinc-900 border rounded-xl shadow-2xl p-4 flex items-start space-x-3 transition-all"
-        :class="getToastBorderClass(toast.type)"
+        class="pointer-events-auto w-full bg-zinc-900 border border-zinc-800 rounded-xl shadow-lg p-3.5 flex items-start space-x-3 transition-all"
       >
         <!-- Icon -->
         <div class="shrink-0 mt-0.5" :class="getToastIconColor(toast.type)">
@@ -43,10 +42,6 @@ import { useToastStore } from '../stores/toast'
 import AppIcon from './AppIcon.vue'
 
 const toastStore = useToastStore()
-
-function getToastBorderClass() {
-  return 'border-zinc-700 bg-zinc-900 shadow-xl'
-}
 
 function getToastIconColor(type) {
   switch (type) {

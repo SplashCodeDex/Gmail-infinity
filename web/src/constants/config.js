@@ -1,20 +1,42 @@
 /**
  * Gmail Infinity - Centralized UI & Application Configuration
- * Eliminates all magic strings, hardcoded options, and scattered color definitions.
  */
 
 export const WORKER_OPTIONS = [
-  { label: '1 Worker (Safe & Steady)', value: 1, description: 'Single worker with humanized delay profiles' },
-  { label: '2 Workers (Balanced)', value: 2, description: 'Dual parallel execution with low detection footprint' },
-  { label: '3 Workers (Fast Batch)', value: 3, description: 'High throughput creation mode' },
-  { label: '5 Workers (Maximum Turbo)', value: 5, description: 'Maximum concurrency utilizing multi-core workers' },
+  { label: '1 Worker', value: 1 },
+  { label: '2 Workers', value: 2 },
+  { label: '3 Workers', value: 3 },
+  { label: '5 Workers', value: 5 },
 ]
 
 export const EXPORT_FORMATS = [
   { label: 'JSON Document (.json)', value: 'json', mimeType: 'application/json' },
   { label: 'CSV Spreadsheet (.csv)', value: 'csv', mimeType: 'text/csv' },
   { label: 'Plain Text (.txt)', value: 'txt', mimeType: 'text/plain' },
-  { label: 'All Formats (.zip / archive)', value: 'all', mimeType: 'application/octet-stream' },
+  { label: 'All Formats (.zip)', value: 'all', mimeType: 'application/octet-stream' },
+]
+
+export const CREATION_FLOWS = [
+  {
+    id: 'adaptive',
+    name: 'Adaptive AI',
+    description: 'Thompson Sampling route optimizer',
+  },
+  {
+    id: 'standard',
+    name: 'Standard Direct',
+    description: 'Direct Google account creation',
+  },
+  {
+    id: 'youtube',
+    name: 'YouTube Route',
+    description: 'Consumer onboarding path',
+  },
+  {
+    id: 'workspace',
+    name: 'Google Workspace',
+    description: 'Enterprise entry point',
+  },
 ]
 
 export const DEFAULT_SESSION_CONFIG = {
@@ -23,64 +45,37 @@ export const DEFAULT_SESSION_CONFIG = {
   use_sms: false,
   use_proxies: true,
   warmup: true,
+  flow_mode: 'adaptive',
   adaptive: true,
   export_format: 'json',
   auto_recover: true,
 }
 
-
-
-export const SESSION_PRESETS = [
-  {
-    id: 'stealth',
-    name: 'Stealth & Safety',
-    description: '1 worker, warmup enabled, proxy rotation, adaptive AI anti-bot',
-    config: { num_accounts: 3, concurrent: 1, use_sms: false, use_proxies: true, warmup: true, adaptive: true },
-  },
-  {
-    id: 'standard',
-    name: 'Standard Production',
-    description: '2 workers, adaptive fingerprints, automatic recovery',
-    config: { num_accounts: 10, concurrent: 2, use_sms: false, use_proxies: true, warmup: true, adaptive: true },
-  },
-  {
-    id: 'turbo',
-    name: 'High Throughput Turbo',
-    description: '3 workers, high concurrency, fast generation',
-    config: { num_accounts: 25, concurrent: 3, use_sms: false, use_proxies: true, warmup: false, adaptive: true },
-  },
-]
-
 export const SESSION_STATUS_STYLES = {
   running: {
-    badge: 'bg-zinc-800 text-emerald-300',
-    indicator: 'bg-emerald-500',
+    badge: 'bg-zinc-800 text-emerald-400 border border-zinc-700',
     label: 'Running',
   },
   completed: {
-    badge: 'bg-zinc-800 text-zinc-300',
-    indicator: 'bg-zinc-500',
+    badge: 'bg-zinc-800 text-zinc-300 border border-zinc-700',
     label: 'Completed',
   },
   failed: {
-    badge: 'bg-zinc-800 text-rose-300',
-    indicator: 'bg-rose-500',
+    badge: 'bg-zinc-800 text-rose-400 border border-zinc-700',
     label: 'Failed',
   },
   stopped: {
-    badge: 'bg-zinc-800 text-amber-300',
-    indicator: 'bg-amber-500',
+    badge: 'bg-zinc-800 text-amber-400 border border-zinc-700',
     label: 'Stopped',
   },
   initializing: {
-    badge: 'bg-zinc-800 text-zinc-300',
-    indicator: 'bg-zinc-500',
+    badge: 'bg-zinc-800 text-zinc-400 border border-zinc-700',
     label: 'Initializing',
   },
 }
 
 export const LOG_LEVELS = [
-  { id: 'all', label: 'All Logs' },
+  { id: 'all', label: 'All' },
   { id: 'info', label: 'Info' },
   { id: 'success', label: 'Success' },
   { id: 'warning', label: 'Warnings' },
@@ -90,27 +85,15 @@ export const LOG_LEVELS = [
 export const LOG_STYLES = {
   info: {
     text: 'text-zinc-300',
-    badge: 'bg-zinc-800 text-zinc-300 border border-zinc-700',
-    iconColor: 'text-cyan-400',
-    icon: 'info',
   },
   success: {
-    text: 'text-emerald-300',
-    badge: 'bg-emerald-950 text-emerald-300 border border-emerald-800',
-    iconColor: 'text-emerald-400',
-    icon: 'check-circle',
+    text: 'text-emerald-400',
   },
   warning: {
-    text: 'text-amber-300',
-    badge: 'bg-amber-950 text-amber-300 border border-amber-800',
-    iconColor: 'text-amber-400',
-    icon: 'alert-triangle',
+    text: 'text-amber-400',
   },
   error: {
-    text: 'text-rose-400 font-semibold',
-    badge: 'bg-rose-950 text-rose-300 border border-rose-800',
-    iconColor: 'text-rose-400',
-    icon: 'x-circle',
+    text: 'text-rose-400',
   },
 }
 
@@ -118,7 +101,6 @@ export const NAV_TABS = [
   { id: 'overview', label: 'Overview', icon: 'activity' },
   { id: 'accounts', label: 'Accounts', icon: 'database' },
   { id: 'proxies', label: 'Proxies', icon: 'shield' },
-  { id: 'terminal', label: 'Terminal', icon: 'terminal' },
   { id: 'diagnostics', label: 'Engine', icon: 'cpu' },
 ]
 
@@ -129,4 +111,5 @@ export const APP_CONFIG = {
   refreshIntervalMs: 4000,
   maxLogHistory: 300,
 }
+
 

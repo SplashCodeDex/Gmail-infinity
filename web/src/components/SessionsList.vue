@@ -29,12 +29,12 @@
       <div
         v-for="session in activeSessions"
         :key="session.id"
-        class="bg-zinc-950/90 rounded-xl p-4 border border-indigo-900/40 shadow-lg shadow-indigo-950/10 space-y-3"
+        class="bg-zinc-950 rounded-xl p-4 border border-zinc-800 space-y-3"
       >
         <!-- Top Row -->
         <div class="flex items-center justify-between">
           <div class="flex items-center space-x-2">
-            <span class="inline-block w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+            <span class="inline-block w-2 h-2 rounded-full bg-emerald-500"></span>
             <span class="font-mono text-xs font-semibold text-zinc-200 tracking-wide">{{ session.id }}</span>
           </div>
           <span
@@ -49,14 +49,14 @@
         <div>
           <div class="flex justify-between text-xs mb-1.5 font-mono">
             <span class="text-zinc-400">Progress</span>
-            <span class="text-zinc-200 font-semibold">
+            <span class="text-zinc-200 font-medium">
               {{ session.progress?.current || 0 }} / {{ session.progress?.total || 0 }} ({{ getProgressPercent(session) }}%)
             </span>
           </div>
 
-          <div class="w-full bg-zinc-800 rounded-full h-1.5 overflow-hidden">
+          <div class="w-full bg-zinc-800 rounded-full h-1 overflow-hidden">
             <div
-              class="h-1.5 rounded-full bg-indigo-500 transition-all duration-300"
+              class="h-1 rounded-full bg-indigo-500 transition-all duration-300"
               :style="{ width: `${getProgressPercent(session)}%` }"
             ></div>
           </div>
@@ -64,9 +64,9 @@
 
         <!-- Stats Breakdown -->
         <div class="flex items-center justify-between text-xs font-mono pt-1 text-zinc-400 border-t border-zinc-900">
-          <div>Success: <span class="text-emerald-400 font-semibold">{{ session.progress?.successes || 0 }}</span></div>
-          <div>Failed: <span class="text-rose-400 font-semibold">{{ session.progress?.failures || 0 }}</span></div>
-          <div>Yield: <span class="text-zinc-200 font-semibold">{{ (session.progress?.success_rate || 0).toFixed(1) }}%</span></div>
+          <div>Success: <span class="text-emerald-400">{{ session.progress?.successes || 0 }}</span></div>
+          <div>Failed: <span class="text-rose-400">{{ session.progress?.failures || 0 }}</span></div>
+          <div>Yield: <span class="text-zinc-200">{{ (session.progress?.success_rate || 0).toFixed(1) }}%</span></div>
         </div>
 
         <!-- Terminate Button -->

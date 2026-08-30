@@ -1,7 +1,7 @@
 <template>
-  <div class="surface-card p-6 space-y-4">
+  <div class="surface-card p-5 space-y-4">
     <!-- Header -->
-    <div class="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-zinc-800 gap-3">
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between pb-3.5 border-b border-zinc-800 gap-3">
       <div class="flex items-center space-x-2.5">
         <div class="w-7 h-7 rounded-lg bg-zinc-800 flex items-center justify-center text-zinc-300">
           <AppIcon name="cpu" :size="14" />
@@ -11,10 +11,10 @@
       <button
         @click="refreshAll"
         :disabled="isRefreshing"
-        class="btn-secondary py-1.5 px-3 text-xs flex items-center space-x-1.5"
+        class="btn-secondary py-1 px-2.5 text-xs flex items-center space-x-1.5"
         title="Refresh diagnostics"
       >
-        <AppIcon name="refresh-cw" :size="13" :class="isRefreshing ? 'animate-spin text-indigo-400' : ''" />
+        <AppIcon name="refresh-cw" :size="12" :class="isRefreshing ? 'animate-spin text-indigo-400' : ''" />
         <span>{{ isRefreshing ? 'Checking...' : 'Refresh' }}</span>
       </button>
     </div>

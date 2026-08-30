@@ -1,24 +1,32 @@
 <template>
-  <div class="surface-card p-6 space-y-4">
-    <!-- Header -->
-    <div class="flex flex-col md:flex-row md:items-center justify-between pb-4 border-b border-zinc-800 gap-3">
-      <div class="flex items-center space-x-2.5">
+  <div class="surface-card p-5 space-y-4">
+    <!-- Header with Integrated Counters & Actions -->
+    <div class="flex flex-col md:flex-row md:items-center justify-between pb-3.5 border-b border-zinc-800 gap-3">
+      <div class="flex items-center space-x-3">
         <div class="w-7 h-7 rounded-lg bg-zinc-800 flex items-center justify-center text-zinc-300">
           <AppIcon name="shield" :size="14" />
         </div>
-        <h2 class="text-sm font-semibold text-zinc-100">Proxy Pool</h2>
+        <div>
+          <h2 class="text-sm font-semibold text-zinc-100">Proxy Pool</h2>
+        </div>
+        <div class="flex items-center space-x-2 text-xs font-mono pl-2 border-l border-zinc-800 text-zinc-400">
+          <span>Total <strong class="text-zinc-200">{{ proxyData.total || allProxies.length || 0 }}</strong></span>
+          <span>•</span>
+          <span>Online <strong class="text-emerald-400">{{ proxyData.healthy || appStore.stats?.proxies?.healthy || 0 }}</strong></span>
+          <span>•</span>
+          <span>Offline <strong class="text-rose-400">{{ proxyData.unhealthy || 0 }}</strong></span>
+        </div>
       </div>
 
       <!-- Header Action Controls -->
-      <div class="flex flex-wrap items-center gap-2">
-        <!-- Fetch Public Proxies Button -->
+      <div class="flex flex-wrap items-center gap-1.5">
         <button
           @click="handleFetchPublic"
           :disabled="isFetchingPublic"
-          class="btn-secondary py-1.5 px-3 text-xs flex items-center space-x-1.5"
+          class="btn-secondary py-1.5 px-2.5 text-xs flex items-center space-x-1.5"
           title="Scrape public proxies"
         >
-          <AppIcon v-if="!isFetchingPublic" name="download" :size="13" />
+          <AppIcon v-if="!isFetchingPublic" name="download" :size="12" />
           <svg v-else class="animate-spin h-3 w-3 text-indigo-400" viewBox="0 0 24 24">
             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle>
             <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
@@ -26,22 +34,20 @@
           <span>{{ isFetchingPublic ? 'Fetching...' : 'Fetch Public' }}</span>
         </button>
 
-        <!-- Import / Paste Modal Trigger -->
         <button
           @click="showImportModal = true"
-          class="btn-secondary py-1.5 px-3 text-xs flex items-center space-x-1.5"
+          class="btn-secondary py-1.5 px-2.5 text-xs flex items-center space-x-1.5"
         >
-          <AppIcon name="plus" :size="13" />
+          <AppIcon name="plus" :size="12" />
           <span>Import</span>
         </button>
 
-        <!-- Run Latency Test Button -->
         <button
           @click="runProxyTest"
           :disabled="isTesting || allProxies.length === 0"
           class="btn-primary py-1.5 px-3 text-xs flex items-center space-x-1.5"
         >
-          <AppIcon v-if="!isTesting" name="activity" :size="13" />
+          <AppIcon v-if="!isTesting" name="activity" :size="12" />
           <svg v-else class="animate-spin h-3.5 w-3.5 text-white" viewBox="0 0 24 24">
             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle>
             <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
@@ -51,47 +57,40 @@
       </div>
     </div>
 
-    <!-- Compact Metrics Summary Bar -->
-    <div class="flex items-center justify-between px-4 py-2 bg-zinc-950/80 rounded-lg border border-zinc-800 text-xs font-mono">
-      <div>Total: <span class="text-zinc-200 font-semibold">{{ proxyData.total || allProxies.length || 0 }}</span></div>
-      <div>Online: <span class="text-emerald-400 font-semibold">{{ proxyData.healthy || appStore.stats?.proxies?.healthy || 0 }}</span></div>
-      <div>Offline: <span class="text-rose-400 font-semibold">{{ proxyData.unhealthy || 0 }}</span></div>
-    </div>
-
     <!-- Proxy List Table/View -->
     <div class="rounded-xl border border-zinc-800 bg-zinc-950/50 overflow-hidden">
-      <div class="p-3 border-b border-zinc-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+      <div class="p-2.5 border-b border-zinc-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
         <div class="relative w-full sm:w-64">
           <input
             v-model="search"
             type="text"
             placeholder="Filter proxy IP / port..."
-            class="w-full pl-8 pr-3 py-1 bg-zinc-900 border border-zinc-700 rounded-lg text-xs text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-zinc-500 font-mono"
+            class="w-full pl-7 pr-2.5 py-1 bg-zinc-900 border border-zinc-800 rounded-lg text-xs text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-zinc-600 font-mono"
           />
-          <AppIcon name="search" :size="13" class="absolute left-2.5 top-1.5 text-zinc-500" />
+          <AppIcon name="search" :size="11" class="absolute left-2.5 top-1.5 text-zinc-500" />
         </div>
 
         <div class="flex items-center space-x-2">
           <!-- Filter Tabs -->
-          <div class="flex items-center space-x-1">
+          <div class="flex items-center space-x-1 bg-zinc-900/80 p-0.5 border border-zinc-800 rounded-lg">
             <button
               @click="filterMode = 'all'"
-              class="px-2.5 py-1 rounded text-[11px] font-mono transition"
-              :class="filterMode === 'all' ? 'bg-zinc-800 text-zinc-100' : 'text-zinc-500 hover:text-zinc-300'"
+              class="px-2 py-0.5 rounded text-[11px] font-mono transition"
+              :class="filterMode === 'all' ? 'bg-zinc-800 text-zinc-100 font-semibold' : 'text-zinc-400 hover:text-zinc-200'"
             >
               All
             </button>
             <button
               @click="filterMode = 'healthy'"
-              class="px-2.5 py-1 rounded text-[11px] font-mono transition"
-              :class="filterMode === 'healthy' ? 'bg-zinc-800 text-emerald-300' : 'text-zinc-500 hover:text-zinc-300'"
+              class="px-2 py-0.5 rounded text-[11px] font-mono transition"
+              :class="filterMode === 'healthy' ? 'bg-zinc-800 text-emerald-400 font-semibold' : 'text-zinc-400 hover:text-zinc-200'"
             >
               Healthy
             </button>
             <button
               @click="filterMode = 'unhealthy'"
-              class="px-2.5 py-1 rounded text-[11px] font-mono transition"
-              :class="filterMode === 'unhealthy' ? 'bg-zinc-800 text-rose-300' : 'text-zinc-500 hover:text-zinc-300'"
+              class="px-2 py-0.5 rounded text-[11px] font-mono transition"
+              :class="filterMode === 'unhealthy' ? 'bg-zinc-800 text-rose-400 font-semibold' : 'text-zinc-400 hover:text-zinc-200'"
             >
               Unhealthy
             </button>
@@ -101,10 +100,10 @@
           <button
             v-if="allProxies.length > 0"
             @click="handleClearPool"
-            class="p-1.5 text-zinc-500 hover:text-rose-400 hover:bg-zinc-900 rounded transition"
+            class="p-1 text-zinc-500 hover:text-rose-400 hover:bg-zinc-900 rounded transition"
             title="Clear all proxies"
           >
-            <AppIcon name="trash-2" :size="14" />
+            <AppIcon name="trash-2" :size="13" />
           </button>
         </div>
       </div>
@@ -113,9 +112,9 @@
       <div class="divide-y divide-zinc-800/80 max-h-96 overflow-y-auto font-mono text-xs">
         <div
           v-if="filteredProxies.length === 0"
-          class="p-8 text-center text-zinc-500"
+          class="p-6 text-center text-zinc-500"
         >
-          <AppIcon name="shield" :size="20" class="mx-auto mb-2 text-zinc-600" />
+          <AppIcon name="shield" :size="20" class="mx-auto mb-1.5 text-zinc-600" />
           <span v-if="allProxies.length === 0">No proxies configured. Click "Import" or "Fetch Public" to populate pool.</span>
           <span v-else>No proxies match filter</span>
         </div>
@@ -123,7 +122,7 @@
         <div
           v-for="(p, i) in filteredProxies"
           :key="i"
-          class="p-3 flex items-center justify-between hover:bg-zinc-900/60 transition group"
+          class="p-2.5 flex items-center justify-between hover:bg-zinc-900/60 transition group"
         >
           <div class="min-w-0 pr-2">
             <span class="text-zinc-200 truncate">{{ p.proxy }}</span>
@@ -156,7 +155,7 @@
               class="p-1 text-zinc-500 hover:text-zinc-200 rounded transition"
               title="Copy proxy"
             >
-              <AppIcon name="copy" :size="13" />
+              <AppIcon name="copy" :size="12" />
             </button>
           </div>
         </div>

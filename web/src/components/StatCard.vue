@@ -36,9 +36,5 @@ defineProps({
     type: String,
     default: 'activity',
   },
-  variant: {
-    type: String,
-    default: 'indigo',
-  },
 })
 </script>

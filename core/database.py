@@ -248,6 +248,19 @@ class DatabaseManager:
                 ''')
                 sms_services = {r[0]: r[1] for r in cursor.fetchall()}
 
+                # Calculate real creation yield across all historical sessions
+                cursor.execute('''
+                    SELECT
+                        COALESCE(SUM(successes), 0),
+                        COALESCE(SUM(failures), 0)
+                    FROM sessions
+                ''')
+                sess_row = cursor.fetchone() or (0, 0)
+                session_successes = sess_row[0]
+                session_failures = sess_row[1]
+                total_attempts = session_successes + session_failures
+                creation_success_rate = (session_successes / total_attempts * 100) if total_attempts > 0 else 0.0
+
                 return {
                     "total": total,
                     "active": active,
@@ -255,6 +268,11 @@ class DatabaseManager:
                     "locked": locked,
                     "error": error,
                     "success_rate": (active / total * 100) if total > 0 else 0,
+                    "vault_health_rate": (active / total * 100) if total > 0 else 0,
+                    "total_attempts": total_attempts,
+                    "session_successes": session_successes,
+                    "session_failures": session_failures,
+                    "creation_success_rate": creation_success_rate,
                     "strategies": strategies,
                     "sms_services": sms_services,
                 }
@@ -262,7 +280,9 @@ class DatabaseManager:
             logger.error(f"Failed to calculate stats: {e}")
             return {
                 "total": 0, "active": 0, "suspended": 0, "locked": 0, "error": 0,
-                "success_rate": 0, "strategies": {}, "sms_services": {}
+                "success_rate": 0, "vault_health_rate": 0,
+                "total_attempts": 0, "session_successes": 0, "session_failures": 0,
+                "creation_success_rate": 0.0, "strategies": {}, "sms_services": {}
             }
 
     def update_account_status(self, email, status, notes=""):
