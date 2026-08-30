@@ -7,6 +7,7 @@ import json
 import logging
 from datetime import datetime
 from core.database import DatabaseManager
+from config.settings import PROJECT_ROOT
 
 logger = logging.getLogger('gmail_creator_accounts')
 
@@ -95,7 +96,9 @@ class AccountManager:
 
     def export_txt(self, filepath=None):
         if not filepath:
-            filepath = f"data/accounts_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
+            filepath = os.path.join(
+                "data", f"accounts_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt")
+        filepath = str(PROJECT_ROOT / filepath) if not os.path.isabs(filepath) else filepath
         accounts = self.db.get_all_accounts()
         os.makedirs(os.path.dirname(filepath), exist_ok=True)
         with open(filepath, "w", encoding="utf-8") as f:
@@ -108,7 +111,7 @@ class AccountManager:
         migrated = 0
 
         # Migrate accounts.txt
-        txt_path = "data/accounts.txt"
+        txt_path = str(PROJECT_ROOT / "data" / "accounts.txt")
         if os.path.exists(txt_path):
             try:
                 with open(txt_path, "r", encoding="utf-8") as f:
@@ -125,7 +128,7 @@ class AccountManager:
                 logger.error(f"TXT migration failed: {e}")
 
         # Migrate accounts.json
-        json_path = "data/accounts.json"
+        json_path = str(PROJECT_ROOT / "data" / "accounts.json")
         if os.path.exists(json_path):
             try:
                 with open(json_path, "r", encoding="utf-8") as f:

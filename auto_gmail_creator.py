@@ -44,7 +44,7 @@ if sys.platform == 'win32':
 from rich.panel import Panel
 from rich.prompt import Prompt
 
-from config.settings import Config
+from config.settings import Config, PROJECT_ROOT
 from core.ui import (
     console, THEME, show_banner, show_menu, get_menu_choice,
     ask_num_accounts, ask_warmup_minutes, get_progress_context,
@@ -99,8 +99,9 @@ def run_creation_flow(num_accounts, warmup_minutes=10, flow_mode='standard', use
     password = Config.YOUR_PASSWORD
 
     if not password:
+        pw_file = str(PROJECT_ROOT / "config" / "password.txt")
         try:
-            with open("config/password.txt", "r", encoding="utf-8") as f:
+            with open(pw_file, "r", encoding="utf-8") as f:
                 password = f.read().strip()
         except FileNotFoundError:
             pass

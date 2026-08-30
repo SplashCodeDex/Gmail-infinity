@@ -7,7 +7,7 @@ import random
 import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-from config.settings import Config
+from config.settings import Config, PROJECT_ROOT
 from core.proxy_manager import proxy_manager
 from core.account_manager import account_manager
 from core.retry_engine import retry_engine
@@ -99,8 +99,9 @@ def run_batch(num_accounts, max_threads=3, warmup_minutes=5,
     password = Config.YOUR_PASSWORD
 
     if not password:
+        pw_file = str(PROJECT_ROOT / "config" / "password.txt")
         try:
-            with open("config/password.txt", "r", encoding="utf-8") as f:
+            with open(pw_file, "r", encoding="utf-8") as f:
                 password = f.read().strip()
         except FileNotFoundError:
             logger.error("No password configured")

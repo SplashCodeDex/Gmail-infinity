@@ -12,14 +12,14 @@ def validate_config():
     Validate all configuration settings on startup.
     Returns: (warnings: list[str], errors: list[str])
     """
-    from config.settings import Config
+    from config.settings import Config, PROJECT_ROOT
 
     warnings = []
     errors = []
 
     # Password
     if not Config.YOUR_PASSWORD:
-        pw_file = "config/password.txt"
+        pw_file = str(PROJECT_ROOT / "config" / "password.txt")
         if os.path.exists(pw_file):
             with open(pw_file, "r", encoding="utf-8") as f:
                 pw = f.read().strip()

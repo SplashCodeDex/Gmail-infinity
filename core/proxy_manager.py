@@ -42,6 +42,9 @@ class ProxyManager:
     def healthy_count(self):
         return sum(1 for p in self._proxies if self._health.get(p, True))
 
+    def get_all_proxies(self):
+        return list(self._proxies)
+
     def get_random(self):
         healthy = [p for p in self._proxies if self._health.get(p, True)]
         if not healthy:
