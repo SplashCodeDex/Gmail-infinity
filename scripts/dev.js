@@ -5,6 +5,7 @@
 import { spawn } from 'node:child_process'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import net from 'node:net'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const rootDir = path.resolve(__dirname, '..')
@@ -22,8 +23,7 @@ const colors = {
 console.log(`${colors.bold}${colors.cyan}╔══════════════════════════════════════════════════════════╗${colors.reset}`)
 console.log(`${colors.bold}${colors.cyan}║   GMAIL INFINITY FACTORY - UNIFIED DEV STACK LAUNCHER   ║${colors.reset}`)
 console.log(`${colors.bold}${colors.cyan}╚══════════════════════════════════════════════════════════╝${colors.reset}`)
-console.log(`${colors.yellow}→ Starting FastAPI Backend on http://localhost:8000 ...${colors.reset}`)
-console.log(`${colors.yellow}→ Starting Vite Frontend on http://localhost:3000 ...${colors.reset}\n`)
+console.log(`${colors.yellow}→ Starting FastAPI Backend on http://127.0.0.1:8000 ...${colors.reset}`)
 
 const isWindows = process.platform === 'win32'
 const pythonCmd = isWindows ? 'python' : 'python3'
@@ -54,28 +54,66 @@ apiProcess.stderr.on('data', (data) => {
   }
 })
 
-// 2. Launch Vite Frontend directly via Node (cross-platform, zero spawn EINVAL issues)
-const webProcess = spawn(process.execPath, [viteBin], {
-  cwd: webDir,
-  shell: false,
-})
-
-webProcess.stdout.on('data', (data) => {
-  const lines = data.toString().split('\n')
-  for (const line of lines) {
-    if (line.trim()) {
-      console.log(`${colors.green}[WEB]${colors.reset} ${line}`)
+// Wait for port 8000 to be responsive before launching Vite to avoid proxy ECONNREFUSED
+function waitForBackend(port = 8000, host = '127.0.0.1', timeout = 15000) {
+  const startTime = Date.now()
+  return new Promise((resolve) => {
+    const check = () => {
+      const socket = new net.Socket()
+      socket.setTimeout(500)
+      socket.on('connect', () => {
+        socket.destroy()
+        resolve(true)
+      })
+      socket.on('error', () => {
+        socket.destroy()
+        if (Date.now() - startTime < timeout) {
+          setTimeout(check, 300)
+        } else {
+          resolve(false)
+        }
+      })
+      socket.on('timeout', () => {
+        socket.destroy()
+        if (Date.now() - startTime < timeout) {
+          setTimeout(check, 300)
+        } else {
+          resolve(false)
+        }
+      })
+      socket.connect(port, host)
     }
-  }
-})
+    check()
+  })
+}
 
-webProcess.stderr.on('data', (data) => {
-  const lines = data.toString().split('\n')
-  for (const line of lines) {
-    if (line.trim()) {
-      console.error(`${colors.green}[WEB]${colors.reset} ${line}`)
+let webProcess = null
+
+// 2. Launch Vite Frontend directly via Node once API is live
+waitForBackend().then((isReady) => {
+  console.log(`\n${colors.yellow}→ Starting Vite Frontend on http://localhost:3000 ...${colors.reset}\n`)
+  webProcess = spawn(process.execPath, [viteBin], {
+    cwd: webDir,
+    shell: false,
+  })
+
+  webProcess.stdout.on('data', (data) => {
+    const lines = data.toString().split('\n')
+    for (const line of lines) {
+      if (line.trim()) {
+        console.log(`${colors.green}[WEB]${colors.reset} ${line}`)
+      }
     }
-  }
+  })
+
+  webProcess.stderr.on('data', (data) => {
+    const lines = data.toString().split('\n')
+    for (const line of lines) {
+      if (line.trim()) {
+        console.error(`${colors.green}[WEB]${colors.reset} ${line}`)
+      }
+    }
+  })
 })
 
 // Handle clean process shutdown
@@ -83,11 +121,11 @@ function cleanup() {
   console.log(`\n${colors.yellow}Shutting down FastAPI and Vite servers...${colors.reset}`)
   try {
     if (isWindows) {
-      if (apiProcess.pid) spawn('taskkill', ['/pid', String(apiProcess.pid), '/f', '/t'], { shell: false })
-      if (webProcess.pid) spawn('taskkill', ['/pid', String(webProcess.pid), '/f', '/t'], { shell: false })
+      if (apiProcess?.pid) spawn('taskkill', ['/pid', String(apiProcess.pid), '/f', '/t'], { shell: false })
+      if (webProcess?.pid) spawn('taskkill', ['/pid', String(webProcess.pid), '/f', '/t'], { shell: false })
     } else {
-      apiProcess.kill('SIGTERM')
-      webProcess.kill('SIGTERM')
+      apiProcess?.kill('SIGTERM')
+      webProcess?.kill('SIGTERM')
     }
   } catch (e) {
     // Ignore cleanup errors

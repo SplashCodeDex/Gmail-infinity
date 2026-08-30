@@ -1,12 +1,21 @@
 <template>
-  <div class="stat-card bg-gray-800 rounded-xl p-6 shadow-xl border border-gray-700">
-    <div class="flex items-center justify-between">
-      <div>
-        <p class="text-gray-400 text-sm mb-1">{{ title }}</p>
-        <h3 :class="['text-3xl font-bold', textColor]">{{ value }}</h3>
+  <div class="stat-card flex flex-col justify-between">
+    <div class="flex items-center justify-between mb-3">
+      <span class="text-xs font-semibold uppercase tracking-wider text-zinc-400">{{ title }}</span>
+      <div
+        class="w-10 h-10 rounded-lg flex items-center justify-center border"
+        :class="[iconBgClass, iconBorderClass, iconTextClass]"
+      >
+        <AppIcon :name="icon" :size="20" />
       </div>
-      <div :class="['p-4 rounded-full', bgColor]">
-        <span class="text-2xl">{{ icon }}</span>
+    </div>
+
+    <div class="flex items-baseline justify-between mt-1">
+      <div class="text-2xl font-bold font-mono tracking-tight" :class="valueTextClass">
+        {{ value }}
+      </div>
+      <div v-if="subtitle" class="text-xs text-zinc-500 font-mono">
+        {{ subtitle }}
       </div>
     </div>
   </div>
@@ -14,34 +23,67 @@
 
 <script setup>
 import { computed } from 'vue'
+import AppIcon from './AppIcon.vue'
 
 const props = defineProps({
   title: {
     type: String,
-    required: true
+    required: true,
   },
   value: {
     type: [String, Number],
-    required: true
+    required: true,
+  },
+  subtitle: {
+    type: String,
+    default: '',
   },
   icon: {
     type: String,
-    required: true
+    default: 'activity',
   },
-  color: {
+  variant: {
     type: String,
-    default: 'blue'
-  }
+    default: 'indigo', // 'indigo', 'emerald', 'amber', 'rose', 'cyan'
+  },
 })
 
 const colorMap = {
-  blue: { text: 'text-blue-400', bg: 'bg-blue-500/20' },
-  green: { text: 'text-green-400', bg: 'bg-green-500/20' },
-  purple: { text: 'text-purple-400', bg: 'bg-purple-500/20' },
-  yellow: { text: 'text-yellow-400', bg: 'bg-yellow-500/20' },
-  red: { text: 'text-red-400', bg: 'bg-red-500/20' },
+  indigo: {
+    text: 'text-indigo-400',
+    iconText: 'text-indigo-400',
+    iconBg: 'bg-indigo-950/60',
+    iconBorder: 'border-indigo-800/80',
+  },
+  emerald: {
+    text: 'text-emerald-400',
+    iconText: 'text-emerald-400',
+    iconBg: 'bg-emerald-950/60',
+    iconBorder: 'border-emerald-800/80',
+  },
+  amber: {
+    text: 'text-amber-400',
+    iconText: 'text-amber-400',
+    iconBg: 'bg-amber-950/60',
+    iconBorder: 'border-amber-800/80',
+  },
+  rose: {
+    text: 'text-rose-400',
+    iconText: 'text-rose-400',
+    iconBg: 'bg-rose-950/60',
+    iconBorder: 'border-rose-800/80',
+  },
+  cyan: {
+    text: 'text-cyan-400',
+    iconText: 'text-cyan-400',
+    iconBg: 'bg-cyan-950/60',
+    iconBorder: 'border-cyan-800/80',
+  },
 }
 
-const textColor = computed(() => colorMap[props.color]?.text || colorMap.blue.text)
-const bgColor = computed(() => colorMap[props.color]?.bg || colorMap.blue.bg)
+const currentVariant = computed(() => colorMap[props.variant] || colorMap.indigo)
+const valueTextClass = computed(() => currentVariant.value.text)
+const iconTextClass = computed(() => currentVariant.value.iconText)
+const iconBgClass = computed(() => currentVariant.value.iconBg)
+const iconBorderClass = computed(() => currentVariant.value.iconBorder)
 </script>

@@ -1,132 +1,142 @@
 <template>
-  <div class="bg-gray-800 rounded-xl shadow-xl border border-gray-700 p-6">
-    <h2 class="text-xl font-bold mb-4 flex items-center">
-      <span class="mr-3">📋</span>
-      Active Sessions
-    </h2>
-
-    <div v-if="!sessions || sessions.length === 0" class="text-center py-8">
-      <p class="text-gray-400">No active sessions. Start one to begin!</p>
+  <div class="surface-card p-6">
+    <!-- Header -->
+    <div class="flex items-center justify-between pb-4 mb-5 border-b border-zinc-800">
+      <div class="flex items-center space-x-3">
+        <div class="w-9 h-9 rounded-lg bg-emerald-950/60 border border-emerald-800/80 flex items-center justify-center text-emerald-400">
+          <AppIcon name="activity" :size="18" />
+        </div>
+        <div>
+          <h2 class="text-base font-bold text-zinc-100">Active Job Pipeline</h2>
+          <p class="text-xs text-zinc-400">Live orchestration sessions & worker telemetry</p>
+        </div>
+      </div>
+      <span class="px-2.5 py-0.5 rounded-full text-xs font-mono bg-zinc-800 text-zinc-300 border border-zinc-700">
+        {{ sessions.length }} {{ sessions.length === 1 ? 'Job' : 'Jobs' }}
+      </span>
     </div>
 
+    <!-- Empty State -->
+    <div
+      v-if="!sessions || sessions.length === 0"
+      class="text-center py-12 px-4 rounded-xl border border-dashed border-zinc-800 bg-zinc-950/40"
+    >
+      <div class="w-12 h-12 mx-auto mb-3 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center text-zinc-500">
+        <AppIcon name="server" :size="22" />
+      </div>
+      <h3 class="text-sm font-semibold text-zinc-300 mb-1">No Active Sessions</h3>
+      <p class="text-xs text-zinc-500 max-w-sm mx-auto">
+        There are currently no background worker processes running. Launch a session to begin automated account creation.
+      </p>
+    </div>
+
+    <!-- Sessions List -->
     <div v-else class="space-y-4">
       <div
         v-for="session in sessions"
         :key="session.id"
-        class="bg-gray-700 rounded-lg p-4 border border-gray-600"
+        class="bg-zinc-950/80 rounded-xl p-5 border border-zinc-800 hover:border-zinc-700/80 transition"
       >
-        <!-- Header -->
-        <div class="flex items-center justify-between mb-3">
+        <!-- Top Row -->
+        <div class="flex items-center justify-between mb-4">
           <div class="flex items-center space-x-3">
-            <div
+            <span
+              class="w-2.5 h-2.5 rounded-full"
               :class="[
-                'w-3 h-3 rounded-full',
-                getStatusColor(session.status),
-                session.status === 'running' ? 'animate-pulse' : ''
+                getStatusIndicator(session.status),
+                session.status === 'running' ? 'ping-indicator' : ''
               ]"
-            ></div>
-            <span class="font-mono text-sm text-gray-400">{{ session.id }}</span>
+            ></span>
+            <span class="font-mono text-xs font-semibold text-zinc-200 tracking-wide">{{ session.id }}</span>
           </div>
           <span
-            :class="[
-              'px-3 py-1 rounded-full text-xs font-semibold uppercase',
-              getStatusBadgeClass(session.status)
-            ]"
+            class="px-2.5 py-0.5 rounded-full text-xs font-mono font-medium uppercase"
+            :class="getStatusBadgeClass(session.status)"
           >
             {{ session.status }}
           </span>
         </div>
 
-        <!-- Progress Bar -->
-        <div class="mb-3">
-          <div class="flex justify-between text-sm mb-1">
-            <span class="text-gray-400">Progress</span>
-            <span class="text-white font-semibold">
-              {{ session.progress.current }}/{{ session.progress.total }}
+        <!-- Progress Metrics -->
+        <div class="mb-4">
+          <div class="flex justify-between text-xs mb-1.5 font-mono">
+            <span class="text-zinc-400">Batch Progress</span>
+            <span class="text-zinc-200 font-semibold">
+              {{ session.progress?.current || 0 }} / {{ session.progress?.total || 0 }} Accounts ({{ getProgressPercent(session) }}%)
             </span>
           </div>
-          <div class="w-full bg-gray-600 rounded-full h-2">
+
+          <!-- Solid Progress Bar (Zero Gradient) -->
+          <div class="w-full bg-zinc-800 rounded-full h-2 overflow-hidden">
             <div
-              class="bg-gradient-to-r from-purple-500 to-blue-500 h-2 rounded-full transition-all duration-500"
-              :style="{ width: getProgressPercent(session) + '%' }"
+              class="h-2 rounded-full transition-all duration-300"
+              :class="session.status === 'failed' ? 'bg-rose-500' : 'bg-indigo-500'"
+              :style="{ width: `${getProgressPercent(session)}%` }"
             ></div>
           </div>
         </div>
 
-        <!-- Stats Grid -->
-        <div class="grid grid-cols-3 gap-2 text-xs">
-          <div class="text-center p-2 bg-green-500/10 rounded">
-            <div class="text-green-400 font-bold">{{ session.progress.successes }}</div>
-            <div class="text-gray-400">Success</div>
+        <!-- Stats Breakdown Grid -->
+        <div class="grid grid-cols-3 gap-2 text-xs mb-3">
+          <div class="p-2.5 bg-zinc-900 border border-zinc-800/80 rounded-lg text-center">
+            <div class="text-emerald-400 font-mono font-bold text-sm">{{ session.progress?.successes || 0 }}</div>
+            <div class="text-zinc-500 text-[11px] uppercase tracking-wider">Success</div>
           </div>
-          <div class="text-center p-2 bg-red-500/10 rounded">
-            <div class="text-red-400 font-bold">{{ session.progress.failures }}</div>
-            <div class="text-gray-400">Failed</div>
+          <div class="p-2.5 bg-zinc-900 border border-zinc-800/80 rounded-lg text-center">
+            <div class="text-rose-400 font-mono font-bold text-sm">{{ session.progress?.failures || 0 }}</div>
+            <div class="text-zinc-500 text-[11px] uppercase tracking-wider">Failed</div>
           </div>
-          <div class="text-center p-2 bg-blue-500/10 rounded">
-            <div class="text-blue-400 font-bold">
-              {{ session.progress.success_rate.toFixed(1) }}%
+          <div class="p-2.5 bg-zinc-900 border border-zinc-800/80 rounded-lg text-center">
+            <div class="text-cyan-400 font-mono font-bold text-sm">
+              {{ (session.progress?.success_rate || 0).toFixed(1) }}%
             </div>
-            <div class="text-gray-400">Rate</div>
+            <div class="text-zinc-500 text-[11px] uppercase tracking-wider">Yield Rate</div>
           </div>
         </div>
 
-        <!-- Stop Button -->
-        <button
-          v-if="session.status === 'running'"
-          @click="handleStop(session.id)"
-          class="w-full mt-3 px-4 py-2 bg-red-600 hover:bg-red-700 rounded text-white text-sm transition flex items-center justify-center space-x-2"
-        >
-          <span>⏹️</span>
-          <span>Stop Session</span>
-        </button>
+        <!-- Actions -->
+        <div v-if="session.status === 'running'" class="pt-1">
+          <button
+            @click="handleStop(session.id)"
+            class="btn-danger w-full py-2 text-xs"
+          >
+            <AppIcon name="square" :size="14" class="mr-1.5" />
+            <span>Terminate Session</span>
+          </button>
+        </div>
       </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { SESSION_STATUS_STYLES } from '../constants/config'
+import AppIcon from './AppIcon.vue'
 
 const props = defineProps({
   sessions: {
     type: Array,
-    default: () => []
-  }
+    default: () => [],
+  },
 })
 
 const emit = defineEmits(['stop-session'])
 
 function getProgressPercent(session) {
-  if (!session.progress.total) return 0
-  return (session.progress.current / session.progress.total * 100).toFixed(1)
+  if (!session?.progress?.total) return 0
+  const pct = (session.progress.current / session.progress.total) * 100
+  return Math.min(100, Math.max(0, Number(pct.toFixed(1))))
 }
 
-function getStatusColor(status) {
-  const colors = {
-    running: 'bg-green-500',
-    completed: 'bg-blue-500',
-    failed: 'bg-red-500',
-    stopped: 'bg-yellow-500',
-    initializing: 'bg-purple-500'
-  }
-  return colors[status] || 'bg-gray-500'
+function getStatusIndicator(status) {
+  return SESSION_STATUS_STYLES[status]?.indicator || 'bg-zinc-500'
 }
 
 function getStatusBadgeClass(status) {
-  const classes = {
-    running: 'bg-green-500/20 text-green-400',
-    completed: 'bg-blue-500/20 text-blue-400',
-    failed: 'bg-red-500/20 text-red-400',
-    stopped: 'bg-yellow-500/20 text-yellow-400',
-    initializing: 'bg-purple-500/20 text-purple-400'
-  }
-  return classes[status] || 'bg-gray-500/20 text-gray-400'
+  return SESSION_STATUS_STYLES[status]?.badge || 'bg-zinc-800 text-zinc-400 border-zinc-700'
 }
 
 function handleStop(sessionId) {
-  if (confirm('Are you sure you want to stop this session?')) {
-    emit('stop-session', sessionId)
-  }
+  emit('stop-session', sessionId)
 }
 </script>

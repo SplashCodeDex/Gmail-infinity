@@ -3,30 +3,74 @@
 @tailwind utilities;
 
 @layer base {
+  * {
+    border-color: #27272a; /* zinc-800 */
+  }
+
   body {
-    @apply antialiased;
+    @apply antialiased bg-zinc-950 text-zinc-100 selection:bg-indigo-600 selection:text-white;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+
+  /* Custom Clean Scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #09090b; /* zinc-950 */
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #27272a; /* zinc-800 */
+    border-radius: 9999px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #3f3f46; /* zinc-700 */
   }
 }
 
 @layer components {
-  .gradient-bg {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  /* Solid Elevated Card */
+  .surface-card {
+    @apply bg-zinc-900 border border-zinc-800 rounded-xl transition-colors duration-150;
   }
 
+  /* Solid Hover Card */
+  .surface-card-hover {
+    @apply bg-zinc-900 border border-zinc-800 hover:border-zinc-700 rounded-xl transition-all duration-150;
+  }
+
+  /* Stat Card Hover */
   .stat-card {
-    @apply transition-transform duration-200;
+    @apply bg-zinc-900 border border-zinc-800 hover:border-zinc-700 rounded-xl p-5 transition-all duration-150;
   }
 
-  .stat-card:hover {
-    @apply -translate-y-1;
+  /* Form Input Styling */
+  .form-input {
+    @apply w-full px-3.5 py-2 bg-zinc-950 border border-zinc-700 rounded-lg text-zinc-100 text-sm placeholder-zinc-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 transition;
+  }
+
+  /* Solid Button Base */
+  .btn-primary {
+    @apply px-4 py-2 bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 text-white text-sm font-semibold rounded-lg shadow-sm transition flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .btn-secondary {
+    @apply px-4 py-2 bg-zinc-800 hover:bg-zinc-700 active:bg-zinc-900 text-zinc-200 border border-zinc-700 text-sm font-medium rounded-lg transition flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .btn-danger {
+    @apply px-4 py-2 bg-rose-600 hover:bg-rose-500 active:bg-rose-700 text-white text-sm font-semibold rounded-lg shadow-sm transition flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed;
   }
 }
 
-@keyframes pulse-glow {
-  0%, 100% { box-shadow: 0 0 10px rgba(34, 197, 94, 0.5); }
-  50% { box-shadow: 0 0 20px rgba(34, 197, 94, 0.8); }
+/* Animations */
+@keyframes ping-slow {
+  0% { transform: scale(1); opacity: 0.8; }
+  50% { transform: scale(1.3); opacity: 0.2; }
+  100% { transform: scale(1); opacity: 0.8; }
 }
 
-.running-indicator {
-  animation: pulse-glow 2s infinite;
+.ping-indicator {
+  animation: ping-slow 2s infinite ease-in-out;
 }

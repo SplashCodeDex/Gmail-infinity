@@ -1,11 +1,24 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
+import { APP_CONFIG } from '../constants/config'
+
+const resolveWebSocketUrl = () => {
+  if (import.meta.env.VITE_WS_URL) {
+    return import.meta.env.VITE_WS_URL
+  }
+  const isSecure = window.location.protocol === 'https:'
+  const protocol = isSecure ? 'wss:' : 'ws:'
+  const host = window.location.host || 'localhost:3000'
+  return `${protocol}//${host}/ws`
+}
 
 export const useWebSocketStore = defineStore('websocket', () => {
   const ws = ref(null)
   const connected = ref(false)
+  const isConnecting = ref(false)
   const logs = ref([])
   const sessions = ref({})
+  const reconnectAttempts = ref(0)
   let reconnectTimeout = null
 
   function connect() {
@@ -13,13 +26,18 @@ export const useWebSocketStore = defineStore('websocket', () => {
       return
     }
 
-    const wsUrl = `ws://${window.location.hostname || 'localhost'}:8000/ws`
+    isConnecting.value = true
+    const wsUrl = resolveWebSocketUrl()
+
     try {
       ws.value = new WebSocket(wsUrl)
 
       ws.value.onopen = () => {
         connected.value = true
-        console.log('[WS] Connected to FastAPI backend:', wsUrl)
+        isConnecting.value = false
+        reconnectAttempts.value = 0
+        console.log('[WS] Connected to live pipeline:', wsUrl)
+
         if (reconnectTimeout) {
           clearTimeout(reconnectTimeout)
           reconnectTimeout = null
@@ -28,15 +46,18 @@ export const useWebSocketStore = defineStore('websocket', () => {
 
       ws.value.onclose = () => {
         connected.value = false
-        console.log('[WS] Disconnected from FastAPI backend. Reconnecting in 3s...')
+        isConnecting.value = false
         ws.value = null
+        reconnectAttempts.value += 1
+
+        const delay = Math.min(1000 * Math.pow(1.5, reconnectAttempts.value), 10000)
         reconnectTimeout = setTimeout(() => {
           connect()
-        }, 3000)
+        }, delay)
       }
 
       ws.value.onerror = (err) => {
-        console.error('[WS] WebSocket error:', err)
+        console.warn('[WS] Stream error:', err)
         ws.value?.close()
       }
 
@@ -44,12 +65,13 @@ export const useWebSocketStore = defineStore('websocket', () => {
         try {
           const data = JSON.parse(event.data)
           handleMessage(data)
-        } catch (e) {
-          console.debug('[WS] Non-JSON message received:', event.data)
+        } catch {
+          // Ignore non-JSON ping/debug messages
         }
       }
     } catch (e) {
-      console.error('[WS] Connection failed:', e)
+      console.error('[WS] Connection init error:', e)
+      isConnecting.value = false
       reconnectTimeout = setTimeout(connect, 3000)
     }
   }
@@ -58,19 +80,30 @@ export const useWebSocketStore = defineStore('websocket', () => {
     switch (data.type) {
       case 'session_log':
         if (data.log) {
-          logs.value.push(data.log)
-          if (logs.value.length > 200) logs.value.shift()
+          logs.value.push({
+            id: Date.now() + Math.random().toString(36).slice(2, 6),
+            ...data.log,
+          })
+          if (logs.value.length > APP_CONFIG.maxLogHistory) {
+            logs.value.shift()
+          }
         }
         break
 
       case 'session_progress':
-        if (data.session_id && sessions.value[data.session_id]) {
+        if (data.session_id) {
+          if (!sessions.value[data.session_id]) {
+            sessions.value[data.session_id] = { id: data.session_id }
+          }
           sessions.value[data.session_id].progress = data.progress
         }
         break
 
       case 'account_created':
-        if (data.session_id && sessions.value[data.session_id]) {
+        if (data.session_id) {
+          if (!sessions.value[data.session_id]) {
+            sessions.value[data.session_id] = { id: data.session_id, created_accounts: [] }
+          }
           if (!sessions.value[data.session_id].created_accounts) {
             sessions.value[data.session_id].created_accounts = []
           }
@@ -79,12 +112,19 @@ export const useWebSocketStore = defineStore('websocket', () => {
         break
 
       case 'session_complete':
-        if (data.session_id && sessions.value[data.session_id]) {
+        if (data.session_id) {
+          if (!sessions.value[data.session_id]) {
+            sessions.value[data.session_id] = { id: data.session_id }
+          }
           sessions.value[data.session_id].status = data.status
           sessions.value[data.session_id].progress = data.progress
         }
         break
     }
+  }
+
+  function clearLogs() {
+    logs.value = []
   }
 
   function send(data) {
@@ -103,15 +143,19 @@ export const useWebSocketStore = defineStore('websocket', () => {
       ws.value = null
     }
     connected.value = false
+    isConnecting.value = false
   }
 
   return {
     ws,
     connected,
+    isConnecting,
     logs,
     sessions,
+    reconnectAttempts,
     connect,
+    clearLogs,
     send,
-    disconnect
+    disconnect,
   }
 })
