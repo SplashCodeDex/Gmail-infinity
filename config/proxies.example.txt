@@ -1,0 +1,11 @@
+# Proxy List Template — copy to config/proxies.txt (gitignored) and fill in.
+# One proxy per line. Blank lines and lines starting with # are ignored.
+#
+# Supported formats (all handled by core/proxy_manager.py):
+#   host:port                                e.g. 192.168.1.1:8080
+#   host:port:username:password              e.g. 192.168.1.2:8080:user:pass
+#   username:password@host:port              e.g. user:pass@192.168.1.3:8080
+#   protocol://host:port                     e.g. socks5://192.168.1.4:1080
+#   protocol://username:password@host:port   e.g. http://user:pass@proxy.example.com:3128
+#
+# WARNING: never commit the real proxies.txt — it may contain credentials.

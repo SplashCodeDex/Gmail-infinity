@@ -5,6 +5,15 @@
 config/5sim_config.txt
 config/password.txt
 
+# ─── Runtime data with credentials (NEVER commit) ───
+data/accounts.json
+data/database.db
+data/*.db
+data/crypt_cookies.json
+data/human_trace.json
+data/session_state.json
+config/proxies.txt
+
 # ─── Python ───
 __pycache__/
 *.py[cod]
@@ -74,5 +83,4 @@ Thumbs.db
 
 # Sensitive files (auto-detected)
 .env
-.env.example
 
