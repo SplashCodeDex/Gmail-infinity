@@ -30,6 +30,17 @@
           <AppIcon name="search" :size="14" class="absolute left-2.5 top-2 text-zinc-500" />
         </div>
 
+        <!-- Health Check -->
+        <button
+          @click="appStore.checkAccountsHealth()"
+          :disabled="appStore.checkingHealth"
+          class="btn-secondary py-1.5 text-xs flex items-center space-x-1.5 disabled:opacity-50 disabled:cursor-wait"
+          title="Verify accounts are still alive via Gmail IMAP"
+        >
+          <AppIcon name="activity" :size="14" />
+          <span>{{ appStore.checkingHealth ? 'Checking…' : 'Health Check' }}</span>
+        </button>
+
         <!-- Export Dropdown -->
         <div class="relative">
           <button
@@ -75,6 +86,7 @@
             <th class="py-3 px-4">Password</th>
             <th class="py-3 px-4">Recovery Email</th>
             <th class="py-3 px-4">Created At</th>
+            <th class="py-3 px-4">Health</th>
             <th class="py-3 px-4 text-right">Actions</th>
           </tr>
         </thead>
@@ -122,9 +134,30 @@
               {{ acc.created_at || 'Saved' }}
             </td>
 
+            <!-- Health -->
+            <td class="py-3 px-4">
+              <span
+                v-if="healthFor(acc)"
+                :class="healthBadgeClass(healthFor(acc).status)"
+                class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-mono border"
+                :title="healthFor(acc).message"
+              >
+                {{ healthFor(acc).status }}
+              </span>
+              <span v-else class="text-zinc-600 text-[11px]">—</span>
+            </td>
+
             <!-- Actions -->
             <td class="py-3 px-4 text-right">
               <div class="flex items-center justify-end space-x-1.5">
+                <button
+                  @click="appStore.checkAccountsHealth([acc.email || acc.username])"
+                  :disabled="appStore.checkingHealth"
+                  class="p-1 text-zinc-400 hover:text-emerald-400 hover:bg-zinc-800 rounded transition disabled:opacity-50"
+                  title="Check this account via IMAP"
+                >
+                  <AppIcon name="activity" :size="13" />
+                </button>
                 <button
                   @click="togglePassword(i)"
                   class="p-1 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 rounded transition"
@@ -192,4 +225,25 @@ async function handleExport(format) {
   showExportMenu.value = false
   await appStore.exportAccounts(format)
 }
+
+function healthFor(acc) {
+  const email = acc.email || acc.username
+  return appStore.healthResults[email] || null
+}
+
+const HEALTH_BADGES = {
+  active: 'bg-emerald-950/60 text-emerald-400 border-emerald-800',
+  password_changed: 'bg-amber-950/60 text-amber-400 border-amber-800',
+  locked: 'bg-red-950/60 text-red-400 border-red-800',
+  suspended: 'bg-red-950/60 text-red-400 border-red-800',
+  error: 'bg-zinc-900 text-zinc-400 border-zinc-700',
+  network_error: 'bg-zinc-900 text-zinc-400 border-zinc-700',
+  unknown: 'bg-zinc-900 text-zinc-400 border-zinc-700',
+}
+
+function healthBadgeClass(status) {
+  return HEALTH_BADGES[status] || HEALTH_BADGE_CLASSES_FALLBACK
+}
+
+const HEALTH_BADGE_CLASSES_FALLBACK = 'bg-zinc-900 text-zinc-400 border-zinc-700'
 </script>

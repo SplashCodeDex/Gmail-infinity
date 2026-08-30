@@ -28,6 +28,8 @@ export const useAppStore = defineStore('app', () => {
   const loading = ref(false)
   const isRefreshing = ref(false)
   const lastUpdated = ref(null)
+  const checkingHealth = ref(false)
+  const healthResults = ref({})
 
   const toast = useToastStore()
 
@@ -151,6 +153,39 @@ export const useAppStore = defineStore('app', () => {
     }
   }
 
+  async function checkAccountsHealth(emails = null) {
+    checkingHealth.value = true
+    try {
+      // IMAP checks are slow — disable the axios timeout for this call
+      const { data } = await api.post(
+        '/accounts/health-check',
+        emails ? { emails } : {},
+        { timeout: 0 }
+      )
+      const map = { ...healthResults.value }
+      for (const r of data.results) map[r.email] = r
+      healthResults.value = map
+
+      const s = data.summary
+      if (s.total === 0) {
+        toast.info('No accounts with stored passwords to check', 'Account Health')
+      } else {
+        toast.success(
+          `${s.active}/${s.total} active (${Math.round(s.health_rate)}%) — ` +
+          `${s.locked} locked, ${s.suspended} suspended, ${s.password_changed} pw-changed`,
+          'Account Health'
+        )
+      }
+      return data
+    } catch (error) {
+      const msg = error.response?.data?.detail || error.message
+      toast.error(msg, 'Health Check Failed')
+      throw error
+    } finally {
+      checkingHealth.value = false
+    }
+  }
+
   async function testProxies() {
     try {
       const { data } = await api.post('/proxies/test')
@@ -259,6 +294,8 @@ export const useAppStore = defineStore('app', () => {
     loading,
     isRefreshing,
     lastUpdated,
+    checkingHealth,
+    healthResults,
     fetchStats,
     fetchConfig,
     fetchAccounts,
@@ -267,6 +304,7 @@ export const useAppStore = defineStore('app', () => {
     startSession,
     stopSession,
     exportAccounts,
+    checkAccountsHealth,
     testProxies,
     importProxies,
     fetchPublicProxies,

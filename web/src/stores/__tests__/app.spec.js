@@ -59,6 +59,50 @@ describe('app store', () => {
     })
   })
 
+  describe('checkAccountsHealth', () => {
+    it('posts to the endpoint, indexes results by email, and toasts the summary', async () => {
+      mockApi.post.mockResolvedValue({
+        data: {
+          results: [
+            { email: 'a@x.com', status: 'active', message: 'ok' },
+            { email: 'b@x.com', status: 'locked', message: 'web login' },
+          ],
+          summary: { total: 2, active: 1, locked: 1, suspended: 0, password_changed: 0, errors: 0, health_rate: 50 },
+        },
+      })
+      const store = useAppStore()
+      const data = await store.checkAccountsHealth()
+
+      expect(mockApi.post).toHaveBeenCalledWith(
+        '/accounts/health-check', {}, { timeout: 0 }
+      )
+      expect(store.healthResults['a@x.com'].status).toBe('active')
+      expect(store.healthResults['b@x.com'].status).toBe('locked')
+      expect(store.checkingHealth).toBe(false)
+      expect(useToastStore().toasts.some(t => t.type === 'success')).toBe(true)
+      return data
+    })
+
+    it('passes the email subset when given', async () => {
+      mockApi.post.mockResolvedValue({
+        data: { results: [], summary: { total: 0, active: 0, health_rate: 0 } },
+      })
+      const store = useAppStore()
+      await store.checkAccountsHealth(['a@x.com'])
+      expect(mockApi.post).toHaveBeenCalledWith(
+        '/accounts/health-check', { emails: ['a@x.com'] }, { timeout: 0 }
+      )
+    })
+
+    it('rethrows and toasts on failure', async () => {
+      mockApi.post.mockRejectedValue({ message: 'boom' })
+      const store = useAppStore()
+      await expect(store.checkAccountsHealth()).rejects.toThrow('boom')
+      expect(useToastStore().toasts.some(t => t.type === 'error')).toBe(true)
+      expect(store.checkingHealth).toBe(false)
+    })
+  })
+
   describe('exportAccounts (blob URL lifecycle)', () => {
     const blobResponse = () => ({ data: new Blob(['email,pass'], { type: 'text/csv' }) })
 

@@ -23,6 +23,7 @@ sys.path.append(str(Path(__file__).parent.parent))
 from config.settings import Config
 from core.account_manager import account_manager
 from core.database import DatabaseManager
+from core.health_checker import AccountHealthChecker
 from core.proxy_manager import proxy_manager
 
 
@@ -44,6 +45,11 @@ class SessionConfig(BaseModel):
 
 class ExportRequest(BaseModel):
     format: str = Field(pattern="^(json|csv|txt|all)$")
+
+
+class HealthCheckRequest(BaseModel):
+    """Optional subset of emails to check; omit to check every account."""
+    emails: Optional[List[str]] = None
 
 
 class ProxyImportRequest(BaseModel):
@@ -347,6 +353,36 @@ async def get_accounts():
     return {
         "accounts": accounts,
         "count": len(accounts)
+    }
+
+
+@app.post("/api/accounts/health-check")
+async def health_check_accounts(request: Optional[HealthCheckRequest] = None):
+    """Verify accounts are still alive via Gmail IMAP.
+
+    Blocking network I/O — runs in the executor threadpool. Checks a
+    subset when `emails` is given, otherwise every stored account.
+    """
+    accounts = account_manager.get_all()
+    if request and request.emails is not None:
+        wanted = set(request.emails)
+        accounts = [a for a in accounts if a.get("email") in wanted]
+
+    to_check = [
+        {"email": a.get("email", ""), "password": a.get("password", "")}
+        for a in accounts
+        if a.get("email") and a.get("password")
+    ]
+    if not to_check:
+        return {"results": [], "summary": AccountHealthChecker.get_summary([])}
+
+    loop = asyncio.get_running_loop()
+    results = await loop.run_in_executor(
+        None, AccountHealthChecker.check_all, to_check, 1
+    )
+    return {
+        "results": results,
+        "summary": AccountHealthChecker.get_summary(results),
     }
 
 

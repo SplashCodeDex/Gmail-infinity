@@ -1112,8 +1112,8 @@ async def async_playwright_flow(i, num_accounts, username, first_name, last_name
             logger.error(f"Failed to save account: {db_err}")
 
         # Print credentials to console
-        from core.ui import print_success
-        print_success(f"CREATED: {username}@gmail.com | Password: {password}")
+        from rich.console import Console
+        Console().print(f"[bold green]CREATED:[/] {username}@gmail.com | Password: {password}")
 
         # Send Telegram notification
         try:
