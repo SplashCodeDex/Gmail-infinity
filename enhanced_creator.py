@@ -515,7 +515,7 @@ class EnhancedCreator:
 
     def generate_username(self) -> Tuple[str, List[str]]:
         """Generate unique username with collision detection."""
-        from core.selenium_runner import generate_name
+        from core.identity import generate_name
 
         # Generate and check for uniqueness
         max_attempts = 10
@@ -553,7 +553,7 @@ class EnhancedCreator:
 
         password = Config.YOUR_PASSWORD
         if not password:
-            from core.selenium_runner import generate_password
+            from core.identity import generate_password
             password = generate_password()
 
         # Select proxy
@@ -596,7 +596,7 @@ class EnhancedCreator:
                 last_name = name_parts[-1] if len(name_parts) > 1 else "User"
 
                 if not Config.YOUR_PASSWORD:
-                    from core.selenium_runner import generate_password
+                    from core.identity import generate_password
                     password = generate_password()
 
             try:
@@ -622,13 +622,9 @@ class EnhancedCreator:
                         progress, task_id,
                     )
                 else:
-                    from core.selenium_runner import run_selenium_flow
-                    warmup_minutes = 10 if self.warmup else 0
-                    success = run_selenium_flow(
-                        index, self.num_accounts, username, password,
-                        warmup_minutes=warmup_minutes,
-                        stealth_mode=(not self.use_sms),
-                        mode=strategy, proxy=proxy,
+                    # The Selenium engine was removed (Playwright covers all flows).
+                    raise ValueError(
+                        f"Unsupported ENGINE_MODE: '{engine}' — use 'playwright' or 'appium'"
                     )
 
                 if success:

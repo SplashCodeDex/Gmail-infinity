@@ -41,47 +41,6 @@ def load_trust_cookies():
     return []
 
 
-def inject_cookies_selenium(driver):
-    """Inject pre-trusted Google cookies via Selenium WebDriver."""
-    cookies = load_trust_cookies()
-    if not cookies:
-        logger.info("No trust cookies found — skipping injection")
-        return False
-
-    try:
-        driver.get("https://www.google.com")
-        time.sleep(2)
-
-        ts = int(time.time())
-        injected = 0
-
-        for cookie in cookies:
-            try:
-                if '___PLACEHOLDER___' in str(cookie.get('value', '')):
-                    continue
-
-                if cookie.get('value') and '___' not in cookie.get('value', ''):
-                    cookie['value'] = _resign_cookie(cookie['value'], ts)
-
-                cookie['expiry'] = int(time.time()) + 86400 * 365
-
-                if cookie.get('sameSite') == 'None':
-                    del cookie['sameSite']
-                cookie.pop('expires', None)
-
-                driver.add_cookie(cookie)
-                injected += 1
-            except Exception:
-                continue
-
-        if injected > 0:
-            logger.info(f"Cookie Reaper: Injected {injected} trust cookies (Selenium)")
-            return True
-    except Exception as e:
-        logger.warning(f"Selenium cookie injection error: {e}")
-    return False
-
-
 async def inject_cookies_playwright(page):
     """Inject pre-trusted Google cookies via Playwright page."""
     cookies = load_trust_cookies()

@@ -8,7 +8,7 @@
         </div>
         <div>
           <h2 class="text-base font-bold text-zinc-100">Engine Diagnostics & Service Hub</h2>
-          <p class="text-xs text-zinc-400">Underlying automation infrastructure, SMS gateway credits, stealth matrix & alert integrations</p>
+          <p class="text-xs text-zinc-400">Automation runtime configuration, SMS gateway credit balances, and notification integrations</p>
         </div>
       </div>
       <button
@@ -108,7 +108,7 @@
               </span>
             </div>
             <p class="text-[11px] text-zinc-500 pt-1">
-              Dispatches real-time HTML alerts for creation success, errors, and batch stats.
+              Dispatches real-time HTML alerts for creation receipts, errors, and batch stats.
             </p>
           </div>
         </div>
@@ -121,71 +121,6 @@
           <AppIcon name="zap" :size="13" class="text-indigo-400 mr-1.5" />
           <span>{{ isTestingTelegram ? 'Dispatching Test...' : 'Send Test Notification' }}</span>
         </button>
-      </div>
-    </div>
-
-    <!-- Deep Anti-Detection & Stealth Matrix -->
-    <div class="bg-zinc-950/80 p-5 rounded-xl border border-zinc-800 space-y-4">
-      <div class="flex items-center justify-between border-b border-zinc-800/80 pb-3">
-        <div class="flex items-center space-x-2.5">
-          <AppIcon name="shield" :size="16" class="text-indigo-400" />
-          <h3 class="text-xs font-semibold uppercase tracking-wider text-zinc-200 font-mono">
-            Deep Stealth & Anti-Fingerprint Matrix
-          </h3>
-        </div>
-        <span class="px-2 py-0.5 rounded text-[10px] font-mono bg-indigo-950 text-indigo-300 border border-indigo-800">
-          Hardware & Browser Emulation
-        </span>
-      </div>
-
-      <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 text-xs font-mono">
-        <div class="p-3 bg-zinc-900/60 rounded-lg border border-zinc-800/80 space-y-1">
-          <div class="text-zinc-400 text-[11px]">Poltergeist PRNG Spoofing</div>
-          <div class="flex items-center justify-between pt-0.5">
-            <span class="text-zinc-200">Canvas / WebGL Noise</span>
-            <span class="text-emerald-400 font-bold">ACTIVE</span>
-          </div>
-        </div>
-
-        <div class="p-3 bg-zinc-900/60 rounded-lg border border-zinc-800/80 space-y-1">
-          <div class="text-zinc-400 text-[11px]">Cookie Reaper Ingestion</div>
-          <div class="flex items-center justify-between pt-0.5">
-            <span class="text-zinc-200">HMAC-SHA1 Pre-Trust</span>
-            <span class="text-emerald-400 font-bold">READY</span>
-          </div>
-        </div>
-
-        <div class="p-3 bg-zinc-900/60 rounded-lg border border-zinc-800/80 space-y-1">
-          <div class="text-zinc-400 text-[11px]">Ghost Typer Behavior</div>
-          <div class="flex items-center justify-between pt-0.5">
-            <span class="text-zinc-200">Bezier & Typo Jitter</span>
-            <span class="text-emerald-400 font-bold">ENGAGED</span>
-          </div>
-        </div>
-
-        <div class="p-3 bg-zinc-900/60 rounded-lg border border-zinc-800/80 space-y-1">
-          <div class="text-zinc-400 text-[11px]">Daisy-Chain Recovery</div>
-          <div class="flex items-center justify-between pt-0.5">
-            <span class="text-zinc-200">Account Hierarchies</span>
-            <span class="text-emerald-400 font-bold">ENABLED</span>
-          </div>
-        </div>
-
-        <div class="p-3 bg-zinc-900/60 rounded-lg border border-zinc-800/80 space-y-1">
-          <div class="text-zinc-400 text-[11px]">Android Appium Native OS</div>
-          <div class="flex items-center justify-between pt-0.5">
-            <span class="text-zinc-200">Emulator OS Settings</span>
-            <span class="text-cyan-400 font-bold">AVAILABLE</span>
-          </div>
-        </div>
-
-        <div class="p-3 bg-zinc-900/60 rounded-lg border border-zinc-800/80 space-y-1">
-          <div class="text-zinc-400 text-[11px]">MAC Address Rotation</div>
-          <div class="flex items-center justify-between pt-0.5">
-            <span class="text-zinc-200">NIC Hardware Masking</span>
-            <span class="text-zinc-400 font-bold">OPTIONAL</span>
-          </div>
-        </div>
       </div>
     </div>
   </div>

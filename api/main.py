@@ -39,11 +39,7 @@ class SessionConfig(BaseModel):
     adaptive: bool = True
     export_format: str = "json"
     auto_recover: bool = True
-    engine_mode: Optional[str] = "playwright"
-    use_arabic_names: Optional[bool] = False
-    enable_poltergeist: Optional[bool] = True
-    enable_cookie_reaper: Optional[bool] = True
-    enable_recovery_chain: Optional[bool] = True
+
 
 
 class ExportRequest(BaseModel):
@@ -557,7 +553,6 @@ async def get_engine_capabilities():
     return {
         "engines": [
             {"id": "playwright", "name": "Playwright (Stealth Web)", "available": True},
-            {"id": "selenium", "name": "Selenium (Undetected Driver)", "available": True},
             {"id": "appium", "name": "Appium (Android Native OS Emulator)", "available": True}
         ],
         "stealth_modules": {

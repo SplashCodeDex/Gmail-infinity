@@ -78,16 +78,6 @@ class TestFormatForPlaywright:
         assert ProxyManager.format_for_playwright("garbage") is None
 
 
-class TestFormatForSelenium:
-    def test_without_auth(self):
-        assert ProxyManager.format_for_selenium("1.2.3.4:8080") == "1.2.3.4:8080"
-
-    def test_with_auth(self):
-        assert ProxyManager.format_for_selenium(
-            "bob:s3cret@1.2.3.4:8080", proxy_type="socks5"
-        ) == "socks5://bob:s3cret@1.2.3.4:8080"
-
-
 class TestRotationAndHealth:
     def test_loads_file_skipping_comments_and_blanks(self, manager):
         assert manager.count == 2

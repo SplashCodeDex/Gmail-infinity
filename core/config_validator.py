@@ -49,20 +49,14 @@ def validate_config():
 
     # Engine mode
     engine = getattr(Config, 'ENGINE_MODE', 'playwright').lower()
-    if engine not in ('playwright', 'selenium', 'appium'):
-        errors.append(f"Invalid ENGINE_MODE: '{engine}' (must be playwright/selenium/appium)")
+    if engine not in ('playwright', 'appium'):
+        errors.append(f"Invalid ENGINE_MODE: '{engine}' (must be playwright/appium — selenium engine was removed)")
 
     if engine == 'playwright':
         try:
             import playwright
         except ImportError:
             warnings.append("ENGINE_MODE=playwright but playwright not installed. Run: pip install playwright && playwright install")
-
-    if engine == 'selenium':
-        try:
-            import selenium
-        except ImportError:
-            errors.append("ENGINE_MODE=selenium but selenium not installed. Run: pip install selenium")
 
     if engine == 'appium':
         try:

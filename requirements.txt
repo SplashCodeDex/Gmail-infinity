@@ -16,10 +16,6 @@ websockets>=12.0
 pydantic>=2.5.0
 python-multipart>=0.0.6
 
-# ─── Core: Selenium (Legacy Engine) ───
-selenium>=4.15.0
-webdriver-manager>=4.0.0
-
 # ─── Mobile: Appium (Android/Golden Method) ───
 Appium-Python-Client>=3.1.0
 

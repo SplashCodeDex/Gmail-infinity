@@ -17,17 +17,6 @@ export const EXPORT_FORMATS = [
   { label: 'All Formats (.zip / archive)', value: 'all', mimeType: 'application/octet-stream' },
 ]
 
-export const ENGINE_MODES = [
-  { id: 'playwright', label: 'Playwright (Stealth Web)', badge: 'Default', description: 'Deep anti-bot browser automation with CDP masking' },
-  { id: 'selenium', label: 'Selenium (Undetected Driver)', badge: 'Alternative', description: 'Patched chromedriver with native stealth hooks' },
-  { id: 'appium', label: 'Appium (Android Native OS)', badge: 'Bypass Phone', description: 'Creates account inside Android Settings (Zero Phone Trigger)' },
-]
-
-export const IDENTITY_NAME_OPTIONS = [
-  { id: 'standard', label: 'Western / Standard Names', description: 'Diverse realistic US/EU identity pool' },
-  { id: 'arabic', label: 'Arabic / Middle Eastern', description: 'Middle Eastern localized name sets' },
-]
-
 export const DEFAULT_SESSION_CONFIG = {
   num_accounts: 5,
   concurrent: 1,
@@ -37,12 +26,8 @@ export const DEFAULT_SESSION_CONFIG = {
   adaptive: true,
   export_format: 'json',
   auto_recover: true,
-  engine_mode: 'playwright',
-  use_arabic_names: false,
-  enable_poltergeist: true,
-  enable_cookie_reaper: true,
-  enable_recovery_chain: true,
 }
+
 
 
 export const SESSION_PRESETS = [

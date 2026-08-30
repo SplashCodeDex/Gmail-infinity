@@ -296,15 +296,6 @@ class ProxyManager:
             result["password"] = parsed["pass"]
         return result
 
-    @staticmethod
-    def format_for_selenium(proxy_string, proxy_type="http"):
-        parsed = ProxyManager.parse(proxy_string)
-        if not parsed:
-            return None
-        if parsed["user"]:
-            return f"{proxy_type}://{parsed['user']}:{parsed['pass']}@{parsed['host']}:{parsed['port']}"
-        return f"{parsed['host']}:{parsed['port']}"
-
     def get_stats(self):
         return {
             "total": len(self._proxies),
