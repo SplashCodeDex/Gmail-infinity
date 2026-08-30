@@ -436,6 +436,7 @@ class EnhancedCreator:
                         use_sms_api=self.use_sms, flow_mode=strategy,
                         headless=self.headless,
                         retry_engine=self.retry_engine,
+                        event_callback=self.event_callback,
                     )
                 elif engine == 'appium':
                     from core.runners import run_appium_flow

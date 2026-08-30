@@ -213,6 +213,13 @@ async def run_creation_session(session_id: str):
                     session.add_log('info', f'Creating account {idx + 1}/{tot}'),
                     loop
                 )
+            elif event_name == 'step':
+                msg = payload.get('description', '')
+                if msg:
+                    asyncio.run_coroutine_threadsafe(
+                        session.add_log('info', msg),
+                        loop
+                    )
             elif event_name == 'account_result':
                 result = payload.get('result', {})
                 idx = result.get('index', 0)

@@ -63,9 +63,21 @@ async def capture_failure(page, tag, username=None):
         logger.debug(f"[FAILURE-CAPTURE] Failed to capture ({tag}): {cap_err}")
 
 
-def _update_progress(progress, task, **kwargs):
+def _update_progress(progress, task, event_callback=None, **kwargs):
     if progress is not None and task is not None:
         progress.update(task, **kwargs)
+    cb = event_callback or (getattr(progress, 'event_callback', None) if progress else None)
+    desc = kwargs.get('description', '')
+    if desc:
+        import re
+        clean_desc = re.sub(r'\[.*?\]', '', desc).strip()
+        if clean_desc:
+            logger.info(f"[FLOW] {clean_desc}")
+            if cb:
+                try:
+                    cb('step', {'description': clean_desc, 'completed': kwargs.get('completed', 0)})
+                except Exception:
+                    pass
 
 
 def run_appium_flow(i, num_accounts, username, first_name, last_name, password,
@@ -511,14 +523,21 @@ async def _handle_post_registration_steps(page, username, progress, account_task
     return True
 
 
-# Main Playwright Flow
-# ──────────────────────────────────────────────────────────────────────────────
 async def async_playwright_flow(i, num_accounts, username, first_name, last_name,
                                  password, progress, account_task, proxy,
                                  month, day, year, gender,
                                  use_sms_api=False, flow_mode="standard", headless=None,
-                                 retry_engine=None):
-    _update_progress(progress, account_task, completed=5, description="Starting Playwright Stealth flow...")
+                                 retry_engine=None, event_callback=None):
+    def notify(completed=None, description=""):
+        kwargs = {}
+        if completed is not None:
+            kwargs['completed'] = completed
+        if description:
+            kwargs['description'] = description
+    if progress is not None:
+        setattr(progress, 'event_callback', event_callback)
+
+    notify(completed=5, description="Starting Playwright Stealth flow...")
     manager = PlaywrightStealthManager()
 
     try:
@@ -1194,7 +1213,7 @@ def run_playwright_flow(i, num_accounts, username, first_name, last_name, passwo
                         progress, account_task, proxy,
                         month=None, day=None, year=None, gender=None,
                         use_sms_api=False, flow_mode="standard", headless=None,
-                        retry_engine=None):
+                        retry_engine=None, event_callback=None):
     if PlaywrightStealthManager is None:
         logger.error("Playwright is not installed. Install with: pip install playwright && playwright install")
         return False
@@ -1208,7 +1227,7 @@ def run_playwright_flow(i, num_accounts, username, first_name, last_name, passwo
         i, num_accounts, username, first_name, last_name, password,
         progress, account_task, proxy, month, day, year, gender,
         use_sms_api, flow_mode, headless=headless,
-        retry_engine=retry_engine,
+        retry_engine=retry_engine, event_callback=event_callback,
     ))
 
     engine_to_use = retry_engine or global_retry_engine
