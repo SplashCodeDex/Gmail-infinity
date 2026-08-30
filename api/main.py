@@ -22,7 +22,6 @@ sys.path.append(str(Path(__file__).parent.parent))
 
 from config.settings import Config
 from core.account_manager import account_manager
-from core.database import DatabaseManager
 from core.health_checker import AccountHealthChecker
 from core.proxy_manager import proxy_manager
 

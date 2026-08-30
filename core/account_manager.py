@@ -1,11 +1,16 @@
 """
 Account Manager - Unified account storage, export, and migration (SQLite-backed)
+
+SQLite (data/database.db) is the single source of truth. Legacy
+accounts.txt / accounts.json are read-only inputs pulled in by the
+one-time auto-import; exports are derived views of the database.
 """
 import os
 import csv
 import json
 import logging
 from datetime import datetime
+from pathlib import Path
 from core.database import DatabaseManager
 from config.settings import PROJECT_ROOT
 
@@ -13,8 +18,25 @@ logger = logging.getLogger('gmail_creator_accounts')
 
 
 class AccountManager:
-    def __init__(self):
-        self.db = DatabaseManager()
+    def __init__(self, db_path=None, legacy_dir=None):
+        self.db = DatabaseManager(db_path)
+        self.legacy_dir = Path(legacy_dir) if legacy_dir else PROJECT_ROOT / "data"
+        self._ensure_legacy_data_imported()
+
+    def _ensure_legacy_data_imported(self):
+        """Auto-heal fresh setups: if the vault is empty but legacy
+        accounts.txt / accounts.json exist, import them (idempotent)."""
+        try:
+            if self.db.get_account_count() == 0:
+                txt_path, json_path = self._legacy_paths()
+                migrated = self.migrate_old_data(txt_path=str(txt_path), json_path=str(json_path))
+                if migrated:
+                    logger.info(f"Auto-imported {migrated} accounts from legacy files")
+        except Exception as e:
+            logger.warning(f"Legacy data import check failed: {e}")
+
+    def _legacy_paths(self):
+        return (self.legacy_dir / "accounts.txt", self.legacy_dir / "accounts.json")
 
     def save(self, email, password, first_name="", last_name="",
              proxy="", strategy="", sms_service="", phone_number="",
@@ -107,11 +129,14 @@ class AccountManager:
         logger.info(f"Exported {len(accounts)} accounts to TXT: {filepath}")
         return filepath
 
-    def migrate_old_data(self):
+    def migrate_old_data(self, txt_path=None, json_path=None):
+        """One-time import of legacy accounts.txt / accounts.json into SQLite.
+        Idempotent: duplicate emails are skipped by the UNIQUE constraint."""
         migrated = 0
 
         # Migrate accounts.txt
-        txt_path = str(PROJECT_ROOT / "data" / "accounts.txt")
+        if txt_path is None:
+            txt_path, _ = self._legacy_paths()
         if os.path.exists(txt_path):
             try:
                 with open(txt_path, "r", encoding="utf-8") as f:
@@ -128,7 +153,8 @@ class AccountManager:
                 logger.error(f"TXT migration failed: {e}")
 
         # Migrate accounts.json
-        json_path = str(PROJECT_ROOT / "data" / "accounts.json")
+        if json_path is None:
+            _, json_path = self._legacy_paths()
         if os.path.exists(json_path):
             try:
                 with open(json_path, "r", encoding="utf-8") as f:

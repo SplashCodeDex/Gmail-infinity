@@ -64,7 +64,6 @@ from rich.layout import Layout
 
 from config.settings import Config
 from core.account_manager import account_manager
-from core.database import DatabaseManager
 from core.proxy_manager import proxy_manager
 from core.retry_engine import retry_engine
 
@@ -357,8 +356,8 @@ class EnhancedCreator:
         self.proxy_manager = IntelligentProxyManager()
         self.checkpoint_manager = CheckpointManager()
 
-        # Database
-        self.db = DatabaseManager()
+        # Database (via the unified account_manager facade)
+        self.db = account_manager.db
 
         # State
         self.completed_indices = set()
