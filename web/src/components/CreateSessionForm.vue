@@ -1,50 +1,40 @@
 <template>
-  <div class="surface-card p-6">
+  <div class="surface-card p-5">
     <!-- Header -->
-    <div class="flex items-center justify-between pb-4 mb-5 border-b border-zinc-800">
-      <div class="flex items-center space-x-3">
-        <div class="w-9 h-9 rounded-lg bg-indigo-950/60 border border-indigo-800/80 flex items-center justify-center text-indigo-400">
-          <AppIcon name="plus" :size="18" />
+    <div class="flex items-center justify-between pb-3.5 mb-4 border-b border-zinc-800">
+      <div class="flex items-center space-x-2.5">
+        <div class="w-8 h-8 rounded-lg bg-indigo-950/60 border border-indigo-800/80 flex items-center justify-center text-indigo-400">
+          <AppIcon name="play" :size="15" />
         </div>
         <div>
-          <h2 class="text-base font-bold text-zinc-100">Create Session</h2>
-          <p class="text-xs text-zinc-400">Configure autonomous provisioning job</p>
+          <h2 class="text-sm font-bold text-zinc-100">Launch Session</h2>
         </div>
       </div>
-      <span class="px-2.5 py-0.5 rounded-full text-xs font-mono bg-zinc-800 text-zinc-300 border border-zinc-700">
-        v2.0
-      </span>
-    </div>
 
-    <!-- Presets Selector -->
-    <div class="mb-5">
-      <label class="block text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-2">
-        Quick Presets
-      </label>
-      <div class="grid grid-cols-3 gap-2">
+      <!-- Presets Selector -->
+      <div class="flex items-center space-x-1 bg-zinc-950 p-1 rounded-lg border border-zinc-800">
         <button
           v-for="preset in SESSION_PRESETS"
           :key="preset.id"
           type="button"
           @click="applyPreset(preset)"
-          class="px-2.5 py-2 rounded-lg text-xs font-medium border text-center transition-all"
+          class="px-2 py-0.5 rounded text-[11px] font-medium transition"
           :class="activePresetId === preset.id
-            ? 'bg-indigo-600 text-white border-indigo-500 shadow-sm'
-            : 'bg-zinc-950/80 text-zinc-300 border-zinc-800 hover:border-zinc-700 hover:bg-zinc-800/60'"
+            ? 'bg-indigo-600 text-white font-semibold shadow-xs'
+            : 'text-zinc-400 hover:text-zinc-200'"
         >
-          <div class="font-semibold">{{ preset.name }}</div>
+          {{ preset.name }}
         </button>
       </div>
     </div>
 
-    <form @submit.prevent="handleSubmit" class="space-y-4">
-      <!-- Target Accounts & Concurrency Grid -->
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+    <form @submit.prevent="handleSubmit" class="space-y-3.5">
+      <!-- Target Accounts & Concurrency -->
+      <div class="grid grid-cols-2 gap-3">
         <!-- Number of Accounts -->
         <div>
-          <label class="block text-xs font-medium text-zinc-300 mb-1.5 flex items-center justify-between">
-            <span>Target Accounts</span>
-            <span class="font-mono text-zinc-500 text-[11px]">1 - 1,000</span>
+          <label class="block text-[11px] font-medium text-zinc-400 mb-1">
+            Accounts
           </label>
           <div class="relative">
             <input
@@ -52,22 +42,21 @@
               type="number"
               min="1"
               max="1000"
-              class="form-input font-mono pr-8"
+              class="form-input font-mono text-xs py-1.5 pr-7"
               required
             />
-            <span class="absolute right-3 top-2.5 text-xs text-zinc-500 font-mono">qty</span>
+            <span class="absolute right-2.5 top-1.5 text-[10px] text-zinc-500 font-mono">qty</span>
           </div>
         </div>
 
         <!-- Concurrent Workers -->
         <div>
-          <label class="block text-xs font-medium text-zinc-300 mb-1.5 flex items-center justify-between">
-            <span>Worker Threads</span>
-            <span class="font-mono text-zinc-500 text-[11px]">Parallel</span>
+          <label class="block text-[11px] font-medium text-zinc-400 mb-1">
+            Workers
           </label>
           <select
             v-model.number="form.concurrent"
-            class="form-input"
+            class="form-input text-xs py-1.5"
           >
             <option
               v-for="opt in WORKER_OPTIONS"
@@ -80,149 +69,92 @@
         </div>
       </div>
 
-      <!-- Engine Mode & Identity Name Pool Selection -->
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
-        <!-- Automation Core Selector -->
-        <div>
-          <label class="block text-xs font-medium text-zinc-300 mb-1.5">
-            Automation Driver Core
-          </label>
-          <select
-            v-model="form.engine_mode"
-            class="form-input"
-          >
-            <option
-              v-for="eng in ENGINE_MODES"
-              :key="eng.id"
-              :value="eng.id"
-            >
-              {{ eng.label }}
-            </option>
-          </select>
-        </div>
-
-        <!-- Name / Identity Language -->
-        <div>
-          <label class="block text-xs font-medium text-zinc-300 mb-1.5">
-            Identity Name Pool
-          </label>
-          <select
-            v-model="form.use_arabic_names"
-            class="form-input"
-          >
-            <option :value="false">Western / Standard (US/EU)</option>
-            <option :value="true">Arabic / Middle Eastern</option>
-          </select>
-        </div>
-      </div>
-
-      <!-- Engine Toggles -->
-      <div class="space-y-2.5 pt-2">
-        <label class="block text-xs font-semibold uppercase tracking-wider text-zinc-400">
-          Engine Intelligence Modules
-        </label>
-
-        <ToggleSwitch
-          v-model="form.use_proxies"
-          label="Proxy Rotation & Routing"
-          description="Rotate pool IPs per account request"
-          icon="shield"
-          color="indigo"
-        />
-
-        <ToggleSwitch
-          v-model="form.warmup"
-          label="Profile & Cookie Warming"
-          description="Simulate realistic initial browsing activity"
-          icon="flame"
-          color="amber"
-        />
-
-        <ToggleSwitch
-          v-model="form.adaptive"
-          label="Adaptive Anti-Bot Engine"
-          description="Humanized typing & dynamic delay jitter"
-          icon="brain"
-          color="indigo"
-        />
-
-        <ToggleSwitch
-          v-model="form.use_sms"
-          label="SMS Verification Gateway"
-          description="Auto-purchase & verify disposable phone numbers"
-          icon="smartphone"
-          color="cyan"
-        />
-      </div>
-
-      <!-- Advanced Stealth Modules Collapsible Section -->
-      <div class="pt-2">
+      <!-- Compact Feature Toggles Grid -->
+      <div class="grid grid-cols-2 gap-2 pt-1">
         <button
           type="button"
-          @click="showAdvancedStealth = !showAdvancedStealth"
-          class="text-xs font-semibold text-indigo-400 hover:text-indigo-300 flex items-center space-x-1.5 transition"
+          @click="form.use_proxies = !form.use_proxies"
+          class="px-2.5 py-2 rounded-lg text-xs font-medium border flex items-center justify-between transition"
+          :class="form.use_proxies
+            ? 'bg-zinc-800/90 border-indigo-500/80 text-zinc-100'
+            : 'bg-zinc-950/60 border-zinc-800 text-zinc-500'"
         >
-          <AppIcon name="sliders" :size="13" />
-          <span>{{ showAdvancedStealth ? 'Hide Deep Stealth Controls' : 'Show Deep Stealth Controls' }}</span>
+          <div class="flex items-center space-x-1.5 truncate">
+            <AppIcon name="shield" :size="13" :class="form.use_proxies ? 'text-indigo-400' : 'text-zinc-600'" />
+            <span class="truncate">Proxy Routing</span>
+          </div>
+          <span class="w-1.5 h-1.5 rounded-full" :class="form.use_proxies ? 'bg-indigo-400' : 'bg-zinc-700'"></span>
         </button>
 
-        <div v-if="showAdvancedStealth" class="space-y-2.5 pt-3 mt-2 border-t border-zinc-800/80">
-          <ToggleSwitch
-            v-model="form.enable_poltergeist"
-            label="Poltergeist PRNG Canvas/WebGL Noise"
-            description="Inject unique session noise to avoid hardware clustering"
-            icon="shield"
-            color="indigo"
-          />
-
-          <ToggleSwitch
-            v-model="form.enable_cookie_reaper"
-            label="Cookie Reaper Pre-Trust Ingestion"
-            description="Re-sign & inject HMAC-SHA1 session cookies before signup"
-            icon="database"
-            color="emerald"
-          />
-
-          <ToggleSwitch
-            v-model="form.enable_recovery_chain"
-            label="Daisy-Chain Recovery Linking"
-            description="Automatically link created accounts as recovery emails"
-            icon="users"
-            color="cyan"
-          />
-        </div>
-      </div>
-
-      <!-- Export Format Selector -->
-      <div class="pt-2">
-        <label class="block text-xs font-medium text-zinc-300 mb-1.5">
-          Automatic Export Format
-        </label>
-        <select
-          v-model="form.export_format"
-          class="form-input"
+        <button
+          type="button"
+          @click="form.warmup = !form.warmup"
+          class="px-2.5 py-2 rounded-lg text-xs font-medium border flex items-center justify-between transition"
+          :class="form.warmup
+            ? 'bg-zinc-800/90 border-amber-500/80 text-zinc-100'
+            : 'bg-zinc-950/60 border-zinc-800 text-zinc-500'"
         >
-          <option
-            v-for="fmt in EXPORT_FORMATS"
-            :key="fmt.value"
-            :value="fmt.value"
-          >
-            {{ fmt.label }}
-          </option>
-        </select>
+          <div class="flex items-center space-x-1.5 truncate">
+            <AppIcon name="flame" :size="13" :class="form.warmup ? 'text-amber-400' : 'text-zinc-600'" />
+            <span class="truncate">Trust Warmup</span>
+          </div>
+          <span class="w-1.5 h-1.5 rounded-full" :class="form.warmup ? 'bg-amber-400' : 'bg-zinc-700'"></span>
+        </button>
+
+        <button
+          type="button"
+          @click="form.adaptive = !form.adaptive"
+          class="px-2.5 py-2 rounded-lg text-xs font-medium border flex items-center justify-between transition"
+          :class="form.adaptive
+            ? 'bg-zinc-800/90 border-emerald-500/80 text-zinc-100'
+            : 'bg-zinc-950/60 border-zinc-800 text-zinc-500'"
+        >
+          <div class="flex items-center space-x-1.5 truncate">
+            <AppIcon name="brain" :size="13" :class="form.adaptive ? 'text-emerald-400' : 'text-zinc-600'" />
+            <span class="truncate">Adaptive AI</span>
+          </div>
+          <span class="w-1.5 h-1.5 rounded-full" :class="form.adaptive ? 'bg-emerald-400' : 'bg-zinc-700'"></span>
+        </button>
+
+        <button
+          type="button"
+          @click="form.use_sms = !form.use_sms"
+          class="px-2.5 py-2 rounded-lg text-xs font-medium border flex items-center justify-between transition"
+          :class="form.use_sms
+            ? 'bg-zinc-800/90 border-cyan-500/80 text-zinc-100'
+            : 'bg-zinc-950/60 border-zinc-800 text-zinc-500'"
+        >
+          <div class="flex items-center space-x-1.5 truncate">
+            <AppIcon name="smartphone" :size="13" :class="form.use_sms ? 'text-cyan-400' : 'text-zinc-600'" />
+            <span class="truncate">SMS Bypass</span>
+          </div>
+          <span class="w-1.5 h-1.5 rounded-full" :class="form.use_sms ? 'bg-cyan-400' : 'bg-zinc-700'"></span>
+        </button>
       </div>
 
-      <!-- Submit Action Button (Zero Gradient, Solid High Contrast) -->
-      <div class="pt-3">
+      <!-- Advanced Settings Trigger -->
+      <div class="flex items-center justify-between pt-1">
+        <button
+          type="button"
+          @click="showAdvancedModal = true"
+          class="text-[11px] text-zinc-400 hover:text-indigo-400 flex items-center space-x-1 transition font-mono"
+        >
+          <AppIcon name="sliders" :size="12" />
+          <span>Advanced Options ({{ form.engine_mode || 'playwright' }})</span>
+        </button>
+      </div>
+
+      <!-- Launch Button -->
+      <div class="pt-1">
         <button
           type="submit"
           :disabled="loading"
-          class="btn-primary w-full py-3 text-sm font-semibold tracking-wide"
+          class="btn-primary w-full py-2 text-xs font-semibold"
         >
-          <AppIcon v-if="!loading" name="play" :size="16" class="mr-1.5" />
+          <AppIcon v-if="!loading" name="play" :size="14" class="mr-1.5" />
           <svg
             v-else
-            class="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
+            class="animate-spin -ml-1 mr-2 h-3.5 w-3.5 text-white"
             xmlns="http://www.w3.org/2000/svg"
             fill="none"
             viewBox="0 0 24 24"
@@ -230,10 +162,85 @@
             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
             <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
           </svg>
-          <span>{{ loading ? 'Initializing Engine Pipeline...' : 'Launch Creation Session' }}</span>
+          <span>{{ loading ? 'Starting Engine...' : 'Start Creation Job' }}</span>
         </button>
       </div>
     </form>
+
+    <!-- Advanced Configuration Modal -->
+    <div
+      v-if="showAdvancedModal"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+    >
+      <div class="bg-zinc-900 border border-zinc-700 rounded-2xl max-w-md w-full p-5 shadow-2xl space-y-4 font-sans">
+        <div class="flex items-center justify-between pb-3 border-b border-zinc-800">
+          <div class="flex items-center space-x-2">
+            <AppIcon name="sliders" :size="16" class="text-indigo-400" />
+            <h3 class="text-sm font-bold text-zinc-100">Advanced Engine Settings</h3>
+          </div>
+          <button @click="showAdvancedModal = false" class="text-zinc-500 hover:text-zinc-300">
+            <AppIcon name="x" :size="15" />
+          </button>
+        </div>
+
+        <div class="space-y-3 text-xs">
+          <!-- Automation Core -->
+          <div>
+            <label class="block text-zinc-300 font-medium mb-1">Automation Runtime Core</label>
+            <select v-model="form.engine_mode" class="form-input text-xs py-1.5">
+              <option v-for="eng in ENGINE_MODES" :key="eng.id" :value="eng.id">
+                {{ eng.label }}
+              </option>
+            </select>
+          </div>
+
+          <!-- Identity Pool -->
+          <div>
+            <label class="block text-zinc-300 font-medium mb-1">Identity Name Pool</label>
+            <select v-model="form.use_arabic_names" class="form-input text-xs py-1.5">
+              <option :value="false">Western / Standard Pool (US/EU)</option>
+              <option :value="true">Arabic / Middle Eastern Pool</option>
+            </select>
+          </div>
+
+          <!-- Export Format -->
+          <div>
+            <label class="block text-zinc-300 font-medium mb-1">Export Format</label>
+            <select v-model="form.export_format" class="form-input text-xs py-1.5">
+              <option v-for="fmt in EXPORT_FORMATS" :key="fmt.value" :value="fmt.value">
+                {{ fmt.label }}
+              </option>
+            </select>
+          </div>
+
+          <!-- Deep Stealth Switches -->
+          <div class="pt-2 border-t border-zinc-800 space-y-2">
+            <label class="flex items-center justify-between cursor-pointer py-1">
+              <span class="text-zinc-300">Poltergeist Canvas/WebGL Noise</span>
+              <input type="checkbox" v-model="form.enable_poltergeist" class="rounded bg-zinc-950 border-zinc-700 text-indigo-600 focus:ring-0" />
+            </label>
+            <label class="flex items-center justify-between cursor-pointer py-1">
+              <span class="text-zinc-300">Cookie Reaper Pre-Trust Ingestion</span>
+              <input type="checkbox" v-model="form.enable_cookie_reaper" class="rounded bg-zinc-950 border-zinc-700 text-indigo-600 focus:ring-0" />
+            </label>
+            <label class="flex items-center justify-between cursor-pointer py-1">
+              <span class="text-zinc-300">Daisy-Chain Recovery Linking</span>
+              <input type="checkbox" v-model="form.enable_recovery_chain" class="rounded bg-zinc-950 border-zinc-700 text-indigo-600 focus:ring-0" />
+            </label>
+          </div>
+        </div>
+
+        <div class="flex justify-end pt-2">
+          <button
+            type="button"
+            @click="showAdvancedModal = false"
+            class="btn-primary py-1.5 px-4 text-xs"
+          >
+            Done
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -247,7 +254,6 @@ import {
   DEFAULT_SESSION_CONFIG,
   ENGINE_MODES,
 } from '../constants/config'
-import ToggleSwitch from './ToggleSwitch.vue'
 import AppIcon from './AppIcon.vue'
 
 const emit = defineEmits(['session-started'])
@@ -255,7 +261,7 @@ const app = useAppStore()
 
 const loading = ref(false)
 const activePresetId = ref('standard')
-const showAdvancedStealth = ref(false)
+const showAdvancedModal = ref(false)
 
 const form = reactive({
   ...DEFAULT_SESSION_CONFIG,

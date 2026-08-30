@@ -1,17 +1,16 @@
 <template>
-  <div class="surface-card p-6">
+  <div class="surface-card p-5">
     <!-- Header -->
-    <div class="flex items-center justify-between pb-4 mb-5 border-b border-zinc-800">
-      <div class="flex items-center space-x-3">
-        <div class="w-9 h-9 rounded-lg bg-emerald-950/60 border border-emerald-800/80 flex items-center justify-center text-emerald-400">
-          <AppIcon name="activity" :size="18" />
+    <div class="flex items-center justify-between pb-3.5 mb-4 border-b border-zinc-800">
+      <div class="flex items-center space-x-2.5">
+        <div class="w-8 h-8 rounded-lg bg-emerald-950/60 border border-emerald-800/80 flex items-center justify-center text-emerald-400">
+          <AppIcon name="activity" :size="16" />
         </div>
         <div>
-          <h2 class="text-base font-bold text-zinc-100">Active Job Pipeline</h2>
-          <p class="text-xs text-zinc-400">Live orchestration sessions & worker telemetry</p>
+          <h2 class="text-sm font-bold text-zinc-100">Job Pipeline</h2>
         </div>
       </div>
-      <span class="px-2.5 py-0.5 rounded-full text-xs font-mono bg-zinc-800 text-zinc-300 border border-zinc-700">
+      <span class="px-2 py-0.5 rounded text-[11px] font-mono bg-zinc-800 text-zinc-300 border border-zinc-700">
         {{ sessions.length }} {{ sessions.length === 1 ? 'Job' : 'Jobs' }}
       </span>
     </div>
@@ -19,14 +18,11 @@
     <!-- Empty State -->
     <div
       v-if="!sessions || sessions.length === 0"
-      class="text-center py-12 px-4 rounded-xl border border-dashed border-zinc-800 bg-zinc-950/40"
+      class="text-center py-6 px-4 rounded-xl border border-dashed border-zinc-800/80 bg-zinc-950/30"
     >
-      <div class="w-12 h-12 mx-auto mb-3 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center text-zinc-500">
-        <AppIcon name="server" :size="22" />
-      </div>
-      <h3 class="text-sm font-semibold text-zinc-300 mb-1">No Active Sessions</h3>
-      <p class="text-xs text-zinc-500 max-w-sm mx-auto">
-        There are currently no background worker processes running. Launch a session to begin automated account creation.
+      <AppIcon name="server" :size="20" class="mx-auto mb-2 text-zinc-600" />
+      <p class="text-xs text-zinc-500">
+        No active background workers. Launch a job to start creation.
       </p>
     </div>
 

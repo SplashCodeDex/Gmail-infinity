@@ -144,21 +144,10 @@ class Config:
     TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
     TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
 
-    # ═══════════════════════════════════════════════════════════════
-    #                  VOICE SERVER SECURITY
-    # ═══════════════════════════════════════════════════════════════
-    VOICE_SERVER_TOKEN = os.getenv("VOICE_SERVER_TOKEN", "")
-
     @classmethod
     def validate(cls):
         """Validate critical config on startup and warn about insecure defaults."""
         warnings = []
-
-        if not cls.VOICE_SERVER_TOKEN:
-            warnings.append(
-                "⚠️  VOICE_SERVER_TOKEN is not set in .env — voice server is unprotected! "
-                "Set a strong secret token."
-            )
 
         if not cls.YOUR_PASSWORD:
             warnings.append("⚠️  YOUR_PASSWORD is empty in .env — accounts may use a default password!")

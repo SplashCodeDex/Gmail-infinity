@@ -1,21 +1,20 @@
 <template>
-  <div class="surface-card p-6 flex flex-col h-[520px]">
+  <div class="surface-card p-5 flex flex-col h-[400px]">
     <!-- Top Header -->
-    <div class="flex flex-col sm:flex-row sm:items-center justify-between pb-4 mb-4 border-b border-zinc-800 gap-3">
-      <div class="flex items-center space-x-3">
-        <div class="w-9 h-9 rounded-lg bg-zinc-800 border border-zinc-700 flex items-center justify-center text-zinc-300">
-          <AppIcon name="terminal" :size="18" />
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between pb-3.5 mb-3 border-b border-zinc-800 gap-2.5">
+      <div class="flex items-center space-x-2.5">
+        <div class="w-8 h-8 rounded-lg bg-zinc-800 border border-zinc-700 flex items-center justify-center text-zinc-300">
+          <AppIcon name="terminal" :size="16" />
         </div>
         <div>
-          <h2 class="text-base font-bold text-zinc-100 flex items-center space-x-2">
-            <span>Live Stream Terminal</span>
+          <h2 class="text-sm font-bold text-zinc-100 flex items-center space-x-2">
+            <span>Terminal Output</span>
             <span
               v-if="wsStore.connected"
               class="w-2 h-2 rounded-full bg-emerald-500 ping-indicator"
               title="Pipeline Active"
             ></span>
           </h2>
-          <p class="text-xs text-zinc-400">Real-time WebSocket event dispatch & logs</p>
         </div>
       </div>
 

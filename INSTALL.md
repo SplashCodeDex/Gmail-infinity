@@ -47,7 +47,7 @@ This single command starts both servers concurrently:
 | `npm run dev:api` | Launch FastAPI Backend only (`http://localhost:8000`) |
 | `npm run dev:web` | Launch Vite Frontend only (`http://localhost:3000`) |
 | `npm run build` | Build optimized frontend in `web/dist/` |
-| `npm run cli` | Run automated zero-interaction CLI (`streamlined_creator.py`) |
+| `npm run cli` | Run automated zero-interaction CLI (`enhanced_creator.py`) |
 | `npm run tui` | Run interactive Rich TUI (`auto_gmail_creator.py`) |
 
 ---

@@ -1,1 +1,1 @@
-"""Services package - SMS, Voice verification handlers"""
+"""Services package - SMS gateway & verification handlers"""

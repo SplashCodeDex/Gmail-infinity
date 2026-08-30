@@ -135,17 +135,18 @@ export const LOG_STYLES = {
 }
 
 export const NAV_TABS = [
-  { id: 'overview', label: 'Dashboard Overview', icon: 'activity' },
-  { id: 'accounts', label: 'Accounts Vault', icon: 'database' },
-  { id: 'proxies', label: 'Proxy Network', icon: 'shield' },
-  { id: 'terminal', label: 'Live Logs', icon: 'terminal' },
-  { id: 'diagnostics', label: 'Engine Diagnostics', icon: 'cpu' },
+  { id: 'overview', label: 'Overview', icon: 'activity' },
+  { id: 'accounts', label: 'Accounts', icon: 'database' },
+  { id: 'proxies', label: 'Proxies', icon: 'shield' },
+  { id: 'terminal', label: 'Terminal', icon: 'terminal' },
+  { id: 'diagnostics', label: 'Engine', icon: 'cpu' },
 ]
 
 export const APP_CONFIG = {
-  name: 'Gmail Infinity Factory',
+  name: 'Gmail Infinity',
   version: '2.0.0',
-  tagline: 'Enterprise Autonomous Gmail Provisioning Suite',
+  tagline: 'Autonomous Provisioning Suite',
   refreshIntervalMs: 4000,
   maxLogHistory: 300,
 }
+
