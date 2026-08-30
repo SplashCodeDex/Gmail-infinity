@@ -40,6 +40,7 @@ class SessionConfig(BaseModel):
     adaptive: bool = True
     export_format: str = "json"
     auto_recover: bool = True
+    headless: bool = False
 
 
 class ExportRequest(BaseModel):
@@ -265,7 +266,7 @@ async def run_creation_session(session_id: str):
             flow_mode=session.config.flow_mode,
             session_id=session_id,
             event_callback=on_creator_event,
-            headless=True,
+            headless=session.config.headless,
         )
         session.creator = creator
 

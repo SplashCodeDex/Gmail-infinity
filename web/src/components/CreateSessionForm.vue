@@ -79,11 +79,11 @@
       </div>
 
       <!-- Feature Toggles Grid -->
-      <div class="grid grid-cols-3 gap-2 pt-0.5">
+      <div class="grid grid-cols-4 gap-1.5 pt-0.5">
         <button
           type="button"
           @click="form.use_proxies = !form.use_proxies"
-          class="px-2.5 py-1.5 rounded-lg text-xs font-medium border flex items-center justify-center space-x-1.5 transition"
+          class="px-2 py-1.5 rounded-lg text-xs font-medium border flex items-center justify-center space-x-1.5 transition"
           :class="form.use_proxies
             ? 'bg-zinc-800 border-zinc-700 text-zinc-100'
             : 'bg-zinc-950/60 border-zinc-800 text-zinc-500 hover:text-zinc-300'"
@@ -96,7 +96,7 @@
         <button
           type="button"
           @click="form.warmup = !form.warmup"
-          class="px-2.5 py-1.5 rounded-lg text-xs font-medium border flex items-center justify-center space-x-1.5 transition"
+          class="px-2 py-1.5 rounded-lg text-xs font-medium border flex items-center justify-center space-x-1.5 transition"
           :class="form.warmup
             ? 'bg-zinc-800 border-zinc-700 text-zinc-100'
             : 'bg-zinc-950/60 border-zinc-800 text-zinc-500 hover:text-zinc-300'"
@@ -109,7 +109,7 @@
         <button
           type="button"
           @click="form.use_sms = !form.use_sms"
-          class="px-2.5 py-1.5 rounded-lg text-xs font-medium border flex items-center justify-center space-x-1.5 transition"
+          class="px-2 py-1.5 rounded-lg text-xs font-medium border flex items-center justify-center space-x-1.5 transition"
           :class="form.use_sms
             ? 'bg-zinc-800 border-zinc-700 text-zinc-100'
             : 'bg-zinc-950/60 border-zinc-800 text-zinc-500 hover:text-zinc-300'"
@@ -117,6 +117,19 @@
         >
           <AppIcon name="smartphone" :size="13" />
           <span class="truncate">SMS</span>
+        </button>
+
+        <button
+          type="button"
+          @click="form.headless = !form.headless"
+          class="px-2 py-1.5 rounded-lg text-xs font-medium border flex items-center justify-center space-x-1.5 transition"
+          :class="!form.headless
+            ? 'bg-zinc-800 border-zinc-700 text-indigo-400 font-semibold'
+            : 'bg-zinc-950/60 border-zinc-800 text-zinc-500 hover:text-zinc-300'"
+          :title="!form.headless ? 'Visible Browser UI: Window opens live on desktop' : 'Headless Browser: Runs in background'"
+        >
+          <AppIcon name="eye" :size="13" />
+          <span class="truncate">{{ !form.headless ? 'Live UI' : 'Headless' }}</span>
         </button>
       </div>
 

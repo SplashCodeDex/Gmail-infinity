@@ -45,6 +45,7 @@ export const DEFAULT_SESSION_CONFIG = {
   use_sms: false,
   use_proxies: true,
   warmup: true,
+  headless: false,
   flow_mode: 'adaptive',
   adaptive: true,
   export_format: 'json',
