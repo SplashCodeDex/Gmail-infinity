@@ -16,6 +16,7 @@ class CreationError:
     BROWSER_CRASH = "browser_crash"
     TIMEOUT = "timeout"
     CAPTCHA = "captcha"
+    FLOW_ERROR = "flow_error"
     UNKNOWN = "unknown"
 
 
@@ -92,6 +93,7 @@ class RetryEngine:
         CreationError.USERNAME_TAKEN: None,
         CreationError.BROWSER_CRASH: ["standard"],
         CreationError.TIMEOUT: ["standard"],
+        CreationError.FLOW_ERROR: ["standard", "youtube"],
         CreationError.CAPTCHA: ["youtube", "workspace"],
         CreationError.UNKNOWN: ["youtube", "standard"],
     }
